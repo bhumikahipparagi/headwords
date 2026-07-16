@@ -275,6 +275,22 @@
     max-width: 72ch;
   }
   .preview summary { cursor: pointer; font-weight: 600; min-height: 30px; }
+  .preview details.entry {
+    border: none;
+    border-bottom: 1px solid var(--rule);
+    border-radius: 0;
+    background: transparent;
+    padding: 14px 0 18px;
+    margin-top: 0;
+    max-width: none;
+  }
+  .preview summary.hw {
+    font-family: var(--serif);
+    font-size: 1.4rem;
+    font-weight: 700;
+    min-height: 44px;
+  }
+  .preview summary.hw .phon { font-size: 1rem; font-weight: 400; }
   .preview details p { max-width: 65ch; }
   .preview a { color: var(--accent); }
   .preview .none { color: var(--muted); font-style: italic; }
@@ -532,26 +548,31 @@
     return parts.join("\n");
   }
 
+  // Each word is itself a collapsed <details> block (word + phonetic as the
+  // summary), built with the same no-blank-lines pure-HTML rule as above.
   function entryMd(word, dict, wiki) {
-    var out = ["## " + word, ""];
+    var head = "<strong>" + esc(word) + "</strong>";
+    if (dict && dict.phonetic) head += " <em>" + esc(dict.phonetic) + "</em>";
+    var out = ["<details><summary>" + head + "</summary>"];
     if (dict) {
-      if (dict.phonetic) { out.push("*" + dict.phonetic + "*", ""); }
       dict.meanings.forEach(function (m) {
-        out.push("**" + m.pos + "**", "");
-        m.defs.forEach(function (d, i) {
-          out.push((i + 1) + ". " + d.def);
-          if (d.example) out.push("   > “" + d.example + "”");
+        out.push("<p><strong>" + esc(m.pos) + "</strong></p>", "<ol>");
+        m.defs.forEach(function (d) {
+          var li = "<li>" + esc(d.def);
+          if (d.example) li += "<blockquote>“" + esc(d.example) + "”</blockquote>";
+          out.push(li + "</li>");
         });
-        out.push("");
+        out.push("</ol>");
       });
     } else {
-      out.push("_No dictionary entry found._", "");
+      out.push("<p><em>No dictionary entry found.</em></p>");
     }
     if (wiki) {
-      out.push(wikiDetailsHtml(wiki), "");
+      out.push(wikiDetailsHtml(wiki));
     } else {
-      out.push("_No Wikipedia article found._", "");
+      out.push("<p><em>No Wikipedia article found.</em></p>");
     }
+    out.push("</details>");
     return out.join("\n");
   }
 
@@ -566,10 +587,11 @@
   function renderPreview(results) {
     pvOut.innerHTML = "";
     results.forEach(function (r) {
-      var box = el("div", "entry");
-      box.appendChild(el("h3", "", r.word));
+      var box = el("details", "entry");
+      var sum = el("summary", "hw", r.word);
+      if (r.dict && r.dict.phonetic) sum.appendChild(el("span", "phon", " " + r.dict.phonetic));
+      box.appendChild(sum);
       if (r.dict) {
-        if (r.dict.phonetic) box.appendChild(el("p", "phon", r.dict.phonetic));
         r.dict.meanings.forEach(function (m) {
           box.appendChild(el("p", "pos", m.pos));
           var ol = el("ol");
@@ -681,7 +703,7 @@
         showBanner(BLOCKED_MSG);
         return;
       }
-      currentMd = results.map(function (r) { return entryMd(r.word, r.dict, r.wiki); }).join("\n---\n\n").trim() + "\n";
+      currentMd = results.map(function (r) { return entryMd(r.word, r.dict, r.wiki); }).join("\n\n---\n\n").trim() + "\n";
       mdOut.textContent = currentMd;
       renderPreview(results);
       copyBtn.disabled = false;
