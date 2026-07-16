@@ -384,27 +384,41 @@
       .then(function (r) { if (!r.ok) return null; return r.json(); })
       .then(function (data) {
         if (!data || !data.length) return null;
-        var phonetic = "", posOrder = [], posMap = {};
+        var phoneticCands = [], posOrder = [], posMap = {};
         data.forEach(function (entry) {
-          if (!phonetic) {
-            phonetic = entry.phonetic || "";
-            (entry.phonetics || []).some(function (p) {
-              if (p.text) { phonetic = p.text; return true; }
-              return false;
-            });
-          }
+          if (entry.phonetic) phoneticCands.push(entry.phonetic);
+          (entry.phonetics || []).forEach(function (p) { if (p.text) phoneticCands.push(p.text); });
           (entry.meanings || []).forEach(function (m) {
             var pos = m.partOfSpeech || "—";
             if (!posMap[pos]) { posMap[pos] = []; posOrder.push(pos); }
             (m.definitions || []).forEach(function (d) {
-              if (posMap[pos].length < 2 && d.definition) {
-                posMap[pos].push({ def: d.definition, example: d.example || "" });
-              }
+              if (d.definition) posMap[pos].push({ def: d.definition, example: d.example || "" });
             });
           });
         });
         if (!posOrder.length) return null;
-        return { phonetic: phonetic, meanings: posOrder.map(function (pos) { return { pos: pos, defs: posMap[pos] }; }) };
+        // Prefer a complete transcription: drop partial variants like "/ɛɡ-/",
+        // then take the longest remaining candidate.
+        var complete = phoneticCands.filter(function (t) {
+          return !/(^[\/\[]\s*-)|(-\s*[\/\]]$)/.test(t.trim());
+        });
+        var phonetic = (complete.length ? complete : phoneticCands)
+          .sort(function (a, b) { return b.length - a.length; })[0] || "";
+        return { phonetic: phonetic, meanings: posOrder.map(function (pos) {
+          var all = posMap[pos];
+          var defs = all.slice(0, 2);
+          // If neither shown definition has an example but a later one does,
+          // swap it in so each part of speech carries an example when available.
+          if (!defs.some(function (d) { return d.example; })) {
+            for (var k = 2; k < all.length; k++) {
+              if (all[k].example) {
+                if (defs.length < 2) defs.push(all[k]); else defs[1] = all[k];
+                break;
+              }
+            }
+          }
+          return { pos: pos, defs: defs };
+        }) };
       });
   }
 
@@ -417,23 +431,44 @@
         return {
           title: d.title,
           extract: d.extract,
+          disambig: d.type === "disambiguation",
           url: (d.content_urls && d.content_urls.desktop && d.content_urls.desktop.page) ||
                "https://en.wikipedia.org/wiki/" + encodeURIComponent(d.title.replace(/ /g, "_"))
         };
       });
   }
 
+  function wikiSearch(word) {
+    return fetch("https://en.wikipedia.org/w/api.php?action=query&list=search&srlimit=6&format=json&origin=*&srsearch=" +
+        encodeURIComponent(word))
+      .then(function (r) { if (!r.ok) return null; return r.json(); })
+      .then(function (d) { return (d && d.query && d.query.search) || []; });
+  }
+
   function fetchWiki(word) {
-    return wikiSummary(word).then(function (hit) {
-      if (hit) return hit;
-      return fetch("https://en.wikipedia.org/w/api.php?action=query&list=search&srlimit=1&format=json&origin=*&srsearch=" +
-          encodeURIComponent(word))
-        .then(function (r) { if (!r.ok) return null; return r.json(); })
-        .then(function (d) {
-          var top = d && d.query && d.query.search && d.query.search[0];
-          if (!top) return null;
-          return wikiSummary(top.title);
+    return wikiSummary(word).then(function (direct) {
+      if (direct && !direct.disambig) return direct;
+      // Either no article or a "may refer to:" disambiguation page —
+      // search for the closest real article instead.
+      return wikiSearch(word).then(function (results) {
+        var stem = word.toLowerCase().slice(0, Math.min(5, word.length));
+        var candidates = results.filter(function (res) {
+          if (direct && res.title === direct.title) return false;
+          // When replacing a disambiguation page, only accept clearly related titles.
+          if (direct) return res.title.toLowerCase().indexOf(stem) !== -1;
+          return true;
+        }).slice(0, 4);
+        var chain = Promise.resolve(null);
+        candidates.forEach(function (res) {
+          chain = chain.then(function (found) {
+            if (found) return found;
+            return wikiSummary(res.title).then(function (s) {
+              return (s && !s.disambig) ? s : null;
+            });
+          });
         });
+        return chain.then(function (found) { return found || direct; });
+      });
     });
   }
 
