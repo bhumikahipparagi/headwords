@@ -429,6 +429,7 @@
         return {
           title: d.title,
           extract: d.extract,
+          description: d.description || "",
           disambig: d.type === "disambiguation",
           url: (d.content_urls && d.content_urls.desktop && d.content_urls.desktop.page) ||
                "https://en.wikipedia.org/wiki/" + encodeURIComponent(d.title.replace(/ /g, "_"))
@@ -443,29 +444,27 @@
       .then(function (d) { return (d && d.query && d.query.search) || []; });
   }
 
+  // A search-derived replacement must be a concept article, not a media work:
+  // the summary "description" field labels those ("2013 film", "1985 EP", …).
+  var MEDIA_RE = /\b(films?|movie|album|songs?|EP|single|band|TV|television|series|novels?|comics?|video game|magazine|manga|anime|artist|musician|actor|actress)\b/i;
+
   function fetchWiki(word) {
     return wikiSummary(word).then(function (direct) {
       if (direct && !direct.disambig) return direct;
       // Either no article or a "may refer to:" disambiguation page —
-      // search for the closest real article instead.
+      // search for the closest real concept article instead.
       return wikiSearch(word).then(function (results) {
         var stem = word.toLowerCase().slice(0, Math.min(5, word.length));
         var candidates = results.filter(function (res) {
           if (direct && res.title === direct.title) return false;
-          // When replacing a disambiguation page, only accept clearly related
-          // titles, and never media works — a concept beats "Trudge (EP)".
-          if (direct) {
-            if (/\((EP|album|film|song|band|TV series|series|comics|novel|magazine|video game)\)$/i.test(res.title)) return false;
-            return res.title.toLowerCase().indexOf(stem) !== -1;
-          }
-          return true;
+          return res.title.toLowerCase().indexOf(stem) !== -1;
         }).slice(0, 4);
         var chain = Promise.resolve(null);
         candidates.forEach(function (res) {
           chain = chain.then(function (found) {
             if (found) return found;
             return wikiSummary(res.title).then(function (s) {
-              return (s && !s.disambig) ? s : null;
+              return (s && !s.disambig && !MEDIA_RE.test(s.description)) ? s : null;
             });
           });
         });
