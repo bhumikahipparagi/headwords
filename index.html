@@ -1,0 +1,673 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="utf-8">
+<title>Headwords — Dictionary + Wikipedia Markdown</title>
+<style>
+  :root {
+    --paper: #F5F6F3;
+    --card: #FFFFFF;
+    --ink: #20242C;
+    --muted: #5C6470;
+    --rule: #DBDEE3;
+    --accent: #24457A;
+    --accent-hover: #1B3560;
+    --accent-soft: #E8EDF5;
+    --on-accent: #FFFFFF;
+    --ok: #2F7D4F;
+    --warn: #A5682A;
+    --code-bg: #F0F1EE;
+    --shadow: 0 1px 3px rgba(32, 36, 44, 0.07);
+    --serif: "Iowan Old Style", "Palatino Nova", Palatino, "Book Antiqua", Georgia, serif;
+    --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper: #12151B;
+      --card: #1A1E26;
+      --ink: #E6E8EC;
+      --muted: #99A1AD;
+      --rule: #2C323D;
+      --accent: #8AAEE0;
+      --accent-hover: #A5C2EA;
+      --accent-soft: #223046;
+      --on-accent: #0F1420;
+      --ok: #6FBF8F;
+      --warn: #D9A05B;
+      --code-bg: #14181F;
+      --shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+    }
+  }
+  :root[data-theme="light"] {
+    --paper: #F5F6F3;
+    --card: #FFFFFF;
+    --ink: #20242C;
+    --muted: #5C6470;
+    --rule: #DBDEE3;
+    --accent: #24457A;
+    --accent-hover: #1B3560;
+    --accent-soft: #E8EDF5;
+    --on-accent: #FFFFFF;
+    --ok: #2F7D4F;
+    --warn: #A5682A;
+    --code-bg: #F0F1EE;
+    --shadow: 0 1px 3px rgba(32, 36, 44, 0.07);
+  }
+  :root[data-theme="dark"] {
+    --paper: #12151B;
+    --card: #1A1E26;
+    --ink: #E6E8EC;
+    --muted: #99A1AD;
+    --rule: #2C323D;
+    --accent: #8AAEE0;
+    --accent-hover: #A5C2EA;
+    --accent-soft: #223046;
+    --on-accent: #0F1420;
+    --ok: #6FBF8F;
+    --warn: #D9A05B;
+    --code-bg: #14181F;
+    --shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.5;
+  }
+
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 24px 20px 64px; }
+
+  header.masthead {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 8px 16px;
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 14px;
+    margin-bottom: 24px;
+  }
+  .masthead h1 {
+    font-family: var(--serif);
+    font-size: 2rem;
+    font-weight: 700;
+    margin: 0;
+    letter-spacing: -0.01em;
+    text-wrap: balance;
+  }
+  .masthead h1 .slash { color: var(--accent); }
+  .eyebrow {
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: minmax(320px, 5fr) minmax(360px, 7fr);
+    gap: 20px;
+    align-items: start;
+  }
+  @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--rule);
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .card h2 {
+    font-family: var(--serif);
+    font-size: 1.1rem;
+    margin: 0;
+    font-weight: 700;
+  }
+  .card h2 .hint { font-family: var(--sans); font-weight: 400; font-size: 0.82rem; color: var(--muted); }
+
+  textarea {
+    width: 100%;
+    min-height: 220px;
+    resize: vertical;
+    background: var(--code-bg);
+    color: var(--ink);
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    padding: 12px 14px;
+    font-family: var(--mono);
+    font-size: 16px;
+    line-height: 1.6;
+  }
+  textarea:focus, button:focus-visible, .tab:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .btn-row { display: flex; flex-wrap: wrap; gap: 10px; }
+  button {
+    font-family: var(--sans);
+    font-size: 0.95rem;
+    font-weight: 600;
+    min-height: 46px;
+    padding: 0 18px;
+    border-radius: 8px;
+    border: 1px solid var(--rule);
+    background: var(--card);
+    color: var(--ink);
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  button:hover { border-color: var(--accent); color: var(--accent); }
+  button.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--on-accent);
+    flex: 1 1 auto;
+  }
+  button.primary:hover { background: var(--accent-hover); border-color: var(--accent-hover); color: var(--on-accent); }
+  button:disabled { opacity: 0.55; cursor: default; }
+  button:disabled:hover { border-color: var(--rule); color: inherit; }
+  button.primary:disabled:hover { background: var(--accent); color: var(--on-accent); }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font-size: 0.82rem;
+    padding: 5px 12px;
+    border-radius: 999px;
+    background: var(--accent-soft);
+    color: var(--ink);
+    border: 1px solid var(--rule);
+  }
+  .chip .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); opacity: 0.5; }
+  .chip .dot.ok { background: var(--ok); opacity: 1; }
+  .chip .dot.miss { background: var(--warn); opacity: 1; }
+  .chip.working .dot:first-of-type { animation: pulse 1s ease-in-out infinite; }
+  @keyframes pulse { 50% { opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .chip.working .dot:first-of-type { animation: none; opacity: 1; } }
+
+  .legend { font-size: 0.78rem; color: var(--muted); }
+  .legend .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; vertical-align: middle; margin: 0 3px 2px 0; }
+  .legend .ok { background: var(--ok); }
+  .legend .miss { background: var(--warn); }
+
+  .banner {
+    border: 1px solid var(--warn);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 0.9rem;
+    color: var(--ink);
+    background: var(--accent-soft);
+    display: none;
+  }
+  .banner.show { display: block; }
+
+  .out-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+  .tabs { display: flex; gap: 4px; background: var(--code-bg); border: 1px solid var(--rule); border-radius: 8px; padding: 3px; }
+  .tab {
+    border: none;
+    background: transparent;
+    min-height: 38px;
+    padding: 0 14px;
+    border-radius: 6px;
+    font-weight: 600;
+    font-size: 0.88rem;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .tab[aria-selected="true"] { background: var(--card); color: var(--ink); box-shadow: var(--shadow); }
+  .spacer { flex: 1; }
+
+  pre.md-out {
+    margin: 0;
+    background: var(--code-bg);
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    padding: 14px 16px;
+    font-family: var(--mono);
+    font-size: 0.84rem;
+    line-height: 1.65;
+    white-space: pre-wrap;
+    word-break: break-word;
+    overflow-x: auto;
+    max-height: 62vh;
+    overflow-y: auto;
+  }
+
+  .preview { max-height: 62vh; overflow-y: auto; padding: 4px 8px; }
+  .preview .entry { border-bottom: 1px solid var(--rule); padding: 14px 0 18px; }
+  .preview .entry:last-child { border-bottom: none; }
+  .preview h3 {
+    font-family: var(--serif);
+    font-size: 1.5rem;
+    margin: 0 0 2px;
+    font-weight: 700;
+  }
+  .preview .phon { font-family: var(--serif); font-style: italic; color: var(--muted); margin: 0 0 8px; }
+  .preview .pos {
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    color: var(--accent);
+    margin: 12px 0 4px;
+  }
+  .preview ol { margin: 0; padding-left: 22px; max-width: 65ch; }
+  .preview li { margin-bottom: 4px; }
+  .preview .ex { color: var(--muted); font-style: italic; margin: 2px 0 0; }
+  .preview details {
+    margin-top: 12px;
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    padding: 10px 14px;
+    background: var(--accent-soft);
+    max-width: 72ch;
+  }
+  .preview summary { cursor: pointer; font-weight: 600; min-height: 30px; }
+  .preview details p { max-width: 65ch; }
+  .preview a { color: var(--accent); }
+  .preview .none { color: var(--muted); font-style: italic; }
+
+  .empty { color: var(--muted); font-size: 0.92rem; padding: 24px 8px; text-align: center; }
+
+  .toast {
+    position: fixed;
+    bottom: 26px;
+    left: 50%;
+    transform: translateX(-50%) translateY(12px);
+    background: var(--ink);
+    color: var(--paper);
+    padding: 10px 20px;
+    border-radius: 999px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s, transform 0.2s;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+  @media (prefers-reduced-motion: reduce) { .toast { transition: none; } }
+
+  footer { margin-top: 28px; font-size: 0.78rem; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="masthead">
+    <h1>Headwords<span class="slash"> /</span></h1>
+    <span class="eyebrow">Dictionary definitions · Wikipedia summaries · Markdown out</span>
+  </header>
+
+  <div class="grid">
+    <section class="card" aria-label="Input">
+      <h2>Words in <span class="hint">— one per bullet</span></h2>
+      <textarea id="input" spellcheck="false" placeholder="- serendipity&#10;- ephemeral&#10;- petrichor" aria-label="Markdown bullet list of words"></textarea>
+      <div class="btn-row">
+        <button id="pasteBtn" type="button">📋 Paste</button>
+        <button id="sampleBtn" type="button">Sample</button>
+        <button id="clearBtn" type="button">Clear</button>
+      </div>
+      <button id="goBtn" class="primary" type="button">Generate markdown</button>
+      <div id="banner" class="banner" role="alert"></div>
+      <div id="chips" class="chips" aria-live="polite"></div>
+      <div class="legend" id="legend" hidden>
+        <span class="dot ok"></span>found &nbsp; <span class="dot miss"></span>not found &nbsp;·&nbsp; left dot = dictionary, right dot = Wikipedia
+      </div>
+    </section>
+
+    <section class="card" aria-label="Output">
+      <div class="out-head">
+        <h2>Markdown out</h2>
+        <div class="tabs" role="tablist">
+          <button class="tab" id="tabMd" role="tab" aria-selected="true" type="button">Markdown</button>
+          <button class="tab" id="tabPv" role="tab" aria-selected="false" type="button">Preview</button>
+        </div>
+        <span class="spacer"></span>
+        <button id="copyBtn" type="button" disabled>📄 Copy markdown</button>
+        <button id="dlBtn" type="button" disabled>Download .md</button>
+      </div>
+      <pre class="md-out" id="mdOut" tabindex="0"><span class="empty">Your generated markdown will appear here.</span></pre>
+      <div class="preview" id="pvOut" hidden></div>
+    </section>
+  </div>
+
+  <footer>
+    Definitions from the <a href="https://dictionaryapi.dev" target="_blank" rel="noopener" style="color:var(--accent)">Free Dictionary API</a> (the Oxford English Dictionary has no free public API); summaries from English Wikipedia. Wikipedia sections use <code>&lt;details&gt;</code> tags — collapsed by default on GitHub and Obsidian.
+  </footer>
+</div>
+
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var input = $("input"), chipsEl = $("chips"), mdOut = $("mdOut"), pvOut = $("pvOut");
+  var goBtn = $("goBtn"), copyBtn = $("copyBtn"), dlBtn = $("dlBtn"), banner = $("banner");
+  var currentMd = "";
+
+  var SAMPLE = "- serendipity\n- petrichor\n- algorithm\n- ephemeral";
+  var BLOCKED_MSG = "This viewer blocks the page’s internet access (claude.ai’s artifact sandbox does this), so dictionary and Wikipedia lookups can’t run here. Open your saved copy of headwords.html directly in a browser — everything works there.";
+
+  // On load, probe whether external requests are allowed so the viewer
+  // learns about a blocked sandbox before typing anything.
+  fetch("https://api.dictionaryapi.dev/api/v2/entries/en/test").catch(function () {
+    showBanner(BLOCKED_MSG);
+  });
+
+  // ---------- input parsing ----------
+  function parseWords(text) {
+    var seen = {}, words = [];
+    text.split(/\r?\n/).forEach(function (line) {
+      var w = line.replace(/^[\s>]*(?:[-*+]|\d+[.)])\s+/, "").replace(/[*_`~\[\]]/g, "").trim();
+      if (!w) return;
+      var key = w.toLowerCase();
+      if (!seen[key]) { seen[key] = true; words.push(w); }
+    });
+    return words;
+  }
+
+  // ---------- fetchers ----------
+  function fetchDict(word) {
+    return fetch("https://api.dictionaryapi.dev/api/v2/entries/en/" + encodeURIComponent(word))
+      .then(function (r) { if (!r.ok) return null; return r.json(); })
+      .then(function (data) {
+        if (!data || !data.length) return null;
+        var phonetic = "", posOrder = [], posMap = {};
+        data.forEach(function (entry) {
+          if (!phonetic) {
+            phonetic = entry.phonetic || "";
+            (entry.phonetics || []).some(function (p) {
+              if (p.text) { phonetic = p.text; return true; }
+              return false;
+            });
+          }
+          (entry.meanings || []).forEach(function (m) {
+            var pos = m.partOfSpeech || "—";
+            if (!posMap[pos]) { posMap[pos] = []; posOrder.push(pos); }
+            (m.definitions || []).forEach(function (d) {
+              if (posMap[pos].length < 2 && d.definition) {
+                posMap[pos].push({ def: d.definition, example: d.example || "" });
+              }
+            });
+          });
+        });
+        if (!posOrder.length) return null;
+        return { phonetic: phonetic, meanings: posOrder.map(function (pos) { return { pos: pos, defs: posMap[pos] }; }) };
+      });
+  }
+
+  function wikiSummary(title) {
+    return fetch("https://en.wikipedia.org/api/rest_v1/page/summary/" +
+        encodeURIComponent(title.replace(/ /g, "_")) + "?redirect=true")
+      .then(function (r) { if (!r.ok) return null; return r.json(); })
+      .then(function (d) {
+        if (!d || !d.extract || d.type === "not_found") return null;
+        return {
+          title: d.title,
+          extract: d.extract,
+          url: (d.content_urls && d.content_urls.desktop && d.content_urls.desktop.page) ||
+               "https://en.wikipedia.org/wiki/" + encodeURIComponent(d.title.replace(/ /g, "_"))
+        };
+      });
+  }
+
+  function fetchWiki(word) {
+    return wikiSummary(word).then(function (hit) {
+      if (hit) return hit;
+      return fetch("https://en.wikipedia.org/w/api.php?action=query&list=search&srlimit=1&format=json&origin=*&srsearch=" +
+          encodeURIComponent(word))
+        .then(function (r) { if (!r.ok) return null; return r.json(); })
+        .then(function (d) {
+          var top = d && d.query && d.query.search && d.query.search[0];
+          if (!top) return null;
+          return wikiSummary(top.title);
+        });
+    });
+  }
+
+  // ---------- markdown assembly ----------
+  function entryMd(word, dict, wiki) {
+    var out = ["## " + word, ""];
+    if (dict) {
+      if (dict.phonetic) { out.push("*" + dict.phonetic + "*", ""); }
+      dict.meanings.forEach(function (m) {
+        out.push("**" + m.pos + "**", "");
+        m.defs.forEach(function (d, i) {
+          out.push((i + 1) + ". " + d.def);
+          if (d.example) out.push("   > “" + d.example + "”");
+        });
+        out.push("");
+      });
+    } else {
+      out.push("_No dictionary entry found._", "");
+    }
+    if (wiki) {
+      out.push(
+        "<details>",
+        "<summary>Wikipedia — " + wiki.title + "</summary>",
+        "",
+        wiki.extract,
+        "",
+        "[Read the full article](" + wiki.url + ")",
+        "",
+        "</details>",
+        ""
+      );
+    } else {
+      out.push("_No Wikipedia article found._", "");
+    }
+    return out.join("\n");
+  }
+
+  // ---------- preview rendering ----------
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text) n.textContent = text;
+    return n;
+  }
+
+  function renderPreview(results) {
+    pvOut.innerHTML = "";
+    results.forEach(function (r) {
+      var box = el("div", "entry");
+      box.appendChild(el("h3", "", r.word));
+      if (r.dict) {
+        if (r.dict.phonetic) box.appendChild(el("p", "phon", r.dict.phonetic));
+        r.dict.meanings.forEach(function (m) {
+          box.appendChild(el("p", "pos", m.pos));
+          var ol = el("ol");
+          m.defs.forEach(function (d) {
+            var li = el("li", "", d.def);
+            if (d.example) li.appendChild(el("p", "ex", "“" + d.example + "”"));
+            ol.appendChild(li);
+          });
+          box.appendChild(ol);
+        });
+      } else {
+        box.appendChild(el("p", "none", "No dictionary entry found."));
+      }
+      if (r.wiki) {
+        var det = el("details");
+        det.appendChild(el("summary", "", "Wikipedia — " + r.wiki.title));
+        det.appendChild(el("p", "", r.wiki.extract));
+        var p = el("p");
+        var a = el("a", "", "Read the full article");
+        a.href = r.wiki.url; a.target = "_blank"; a.rel = "noopener";
+        p.appendChild(a);
+        det.appendChild(p);
+        box.appendChild(det);
+      } else {
+        box.appendChild(el("p", "none", "No Wikipedia article found."));
+      }
+      pvOut.appendChild(box);
+    });
+  }
+
+  // ---------- status chips ----------
+  function makeChip(word) {
+    var c = el("span", "chip working");
+    c.appendChild(document.createTextNode(word));
+    var d1 = el("span", "dot"), d2 = el("span", "dot");
+    c.appendChild(d1); c.appendChild(d2);
+    chipsEl.appendChild(c);
+    return {
+      set: function (which, ok) {
+        (which === "dict" ? d1 : d2).classList.add(ok ? "ok" : "miss");
+      },
+      done: function () { c.classList.remove("working"); }
+    };
+  }
+
+  // ---------- generate ----------
+  function generate() {
+    var words = parseWords(input.value);
+    banner.classList.remove("show");
+    if (!words.length) {
+      showBanner("Add at least one word — one bullet per line, e.g. “- serendipity”.");
+      return;
+    }
+    goBtn.disabled = true;
+    goBtn.textContent = "Looking up " + words.length + " word" + (words.length > 1 ? "s" : "") + "…";
+    chipsEl.innerHTML = "";
+    $("legend").hidden = false;
+    mdOut.innerHTML = "";
+    mdOut.appendChild(el("span", "empty", "Working…"));
+
+    var results = new Array(words.length);
+    var networkErrors = 0;
+    var idx = 0, active = 0, LIMIT = 4;
+
+    function next() {
+      while (active < LIMIT && idx < words.length) {
+        (function (i) {
+          var word = words[i];
+          active++; idx++;
+          var chip = makeChip(word);
+          var dictP = fetchDict(word).catch(function () { networkErrors++; return null; });
+          var wikiP = fetchWiki(word).catch(function () { networkErrors++; return null; });
+          Promise.all([dictP, wikiP]).then(function (vals) {
+            chip.set("dict", !!vals[0]);
+            chip.set("wiki", !!vals[1]);
+            chip.done();
+            results[i] = { word: word, dict: vals[0], wiki: vals[1] };
+            active--;
+            if (idx < words.length) next();
+            else if (active === 0) finish();
+          });
+        })(i = idx);
+      }
+    }
+    var i;
+
+    function finish() {
+      goBtn.disabled = false;
+      goBtn.textContent = "Generate markdown";
+      var allEmpty = results.every(function (r) { return !r.dict && !r.wiki; });
+      if (allEmpty && networkErrors > 0) {
+        currentMd = "";
+        copyBtn.disabled = true;
+        dlBtn.disabled = true;
+        mdOut.innerHTML = "";
+        mdOut.appendChild(el("span", "empty", "No markdown generated — the lookups couldn’t reach the internet."));
+        pvOut.innerHTML = "";
+        showBanner(BLOCKED_MSG);
+        return;
+      }
+      currentMd = results.map(function (r) { return entryMd(r.word, r.dict, r.wiki); }).join("\n---\n\n").trim() + "\n";
+      mdOut.textContent = currentMd;
+      renderPreview(results);
+      copyBtn.disabled = false;
+      dlBtn.disabled = false;
+    }
+
+    next();
+  }
+
+  function showBanner(msg) {
+    banner.textContent = msg;
+    banner.classList.add("show");
+  }
+
+  // ---------- clipboard & misc ----------
+  function toast(msg) {
+    var t = $("toast");
+    t.textContent = msg;
+    t.classList.add("show");
+    clearTimeout(t._h);
+    t._h = setTimeout(function () { t.classList.remove("show"); }, 1800);
+  }
+
+  copyBtn.addEventListener("click", function () {
+    function fallback() {
+      var ta = document.createElement("textarea");
+      ta.value = currentMd;
+      ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      try { document.execCommand("copy"); toast("Copied ✓"); }
+      catch (e) { toast("Copy failed — select the text manually"); }
+      document.body.removeChild(ta);
+    }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(currentMd).then(function () { toast("Copied ✓"); }, fallback);
+    } else fallback();
+  });
+
+  dlBtn.addEventListener("click", function () {
+    var blob = new Blob([currentMd], { type: "text/markdown" });
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "headwords.md";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 2000);
+  });
+
+  $("pasteBtn").addEventListener("click", function () {
+    if (navigator.clipboard && navigator.clipboard.readText) {
+      navigator.clipboard.readText().then(function (text) {
+        if (text) { input.value = text; toast("Pasted ✓"); }
+        else toast("Clipboard is empty");
+      }, function () { toast("Paste blocked — tap the box and paste manually"); });
+    } else {
+      toast("Paste not available — tap the box and paste manually");
+      input.focus();
+    }
+  });
+
+  $("sampleBtn").addEventListener("click", function () { input.value = SAMPLE; });
+  $("clearBtn").addEventListener("click", function () {
+    input.value = ""; chipsEl.innerHTML = ""; $("legend").hidden = true;
+    banner.classList.remove("show");
+  });
+  goBtn.addEventListener("click", generate);
+
+  // tabs
+  var tabMd = $("tabMd"), tabPv = $("tabPv");
+  function selectTab(md) {
+    tabMd.setAttribute("aria-selected", md ? "true" : "false");
+    tabPv.setAttribute("aria-selected", md ? "false" : "true");
+    mdOut.hidden = !md;
+    pvOut.hidden = md;
+  }
+  tabMd.addEventListener("click", function () { selectTab(true); });
+  tabPv.addEventListener("click", function () { selectTab(false); });
+})();
+</script>
+
+</body>
+</html>
