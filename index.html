@@ -397,13 +397,11 @@
           });
         });
         if (!posOrder.length) return null;
-        // Prefer a complete transcription: drop partial variants like "/ɛɡ-/",
-        // then take the longest remaining candidate.
-        var complete = phoneticCands.filter(function (t) {
+        // Only complete transcriptions: partial variants like "/ɛɡ-/" are
+        // worse than no phonetic at all. Take the longest complete candidate.
+        var phonetic = phoneticCands.filter(function (t) {
           return !/(^[\/\[]\s*-)|(-\s*[\/\]]$)/.test(t.trim());
-        });
-        var phonetic = (complete.length ? complete : phoneticCands)
-          .sort(function (a, b) { return b.length - a.length; })[0] || "";
+        }).sort(function (a, b) { return b.length - a.length; })[0] || "";
         return { phonetic: phonetic, meanings: posOrder.map(function (pos) {
           var all = posMap[pos];
           var defs = all.slice(0, 2);
@@ -454,8 +452,12 @@
         var stem = word.toLowerCase().slice(0, Math.min(5, word.length));
         var candidates = results.filter(function (res) {
           if (direct && res.title === direct.title) return false;
-          // When replacing a disambiguation page, only accept clearly related titles.
-          if (direct) return res.title.toLowerCase().indexOf(stem) !== -1;
+          // When replacing a disambiguation page, only accept clearly related
+          // titles, and never media works — a concept beats "Trudge (EP)".
+          if (direct) {
+            if (/\((EP|album|film|song|band|TV series|series|comics|novel|magazine|video game)\)$/i.test(res.title)) return false;
+            return res.title.toLowerCase().indexOf(stem) !== -1;
+          }
           return true;
         }).slice(0, 4);
         var chain = Promise.resolve(null);
