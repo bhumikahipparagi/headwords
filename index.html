@@ -448,11 +448,44 @@
   // the summary "description" field labels those ("2013 film", "1985 EP", …).
   var MEDIA_RE = /\b(films?|movie|album|songs?|EP|single|band|TV|television|series|novels?|comics?|video game|magazine|manga|anime|artist|musician|actor|actress)\b/i;
 
+  // The summary endpoint truncates disambiguation pages to the lead line, so
+  // fetch the full plain-text extract to get the actual list of meanings.
+  function wikiDisambigList(direct) {
+    return fetch("https://en.wikipedia.org/w/api.php?action=query&prop=extracts&explaintext=1&format=json&origin=*&titles=" +
+        encodeURIComponent(direct.title))
+      .then(function (r) { if (!r.ok) return null; return r.json(); })
+      .then(function (d) {
+        var pages = d && d.query && d.query.pages;
+        var text = pages && pages[Object.keys(pages)[0]] && pages[Object.keys(pages)[0]].extract;
+        if (!text) return direct;
+        var lines = text.split("\n").map(function (s) { return s.trim(); }).filter(Boolean);
+        var intro = lines.shift() || (direct.title + " may refer to:");
+        var items = [];
+        for (var i = 0; i < lines.length && items.length < 12; i++) {
+          var h = lines[i].match(/^==+\s*(.+?)\s*==+$/);
+          if (h) {
+            if (/see also|references|external links|notes/i.test(h[1])) break;
+            continue;
+          }
+          items.push("- " + lines[i]);
+        }
+        if (!items.length) return direct;
+        return {
+          title: direct.title,
+          url: direct.url,
+          disambig: true,
+          extract: intro + "\n\n" + items.join("\n")
+        };
+      })
+      .catch(function () { return direct; });
+  }
+
   function fetchWiki(word) {
     return wikiSummary(word).then(function (direct) {
       if (direct && !direct.disambig) return direct;
-      // Either no article or a "may refer to:" disambiguation page —
-      // search for the closest real concept article instead.
+      // An ambiguous word: show the disambiguation page's list of meanings.
+      if (direct) return wikiDisambigList(direct);
+      // No article at all — search for the closest real concept article.
       return wikiSearch(word).then(function (results) {
         var stem = word.toLowerCase().slice(0, Math.min(5, word.length));
         var candidates = results.filter(function (res) {
@@ -538,7 +571,18 @@
       if (r.wiki) {
         var det = el("details");
         det.appendChild(el("summary", "", "Wikipedia — " + r.wiki.title));
-        det.appendChild(el("p", "", r.wiki.extract));
+        var curUl = null;
+        r.wiki.extract.split("\n").forEach(function (line) {
+          line = line.trim();
+          if (!line) { curUl = null; return; }
+          if (line.indexOf("- ") === 0) {
+            if (!curUl) { curUl = el("ul"); det.appendChild(curUl); }
+            curUl.appendChild(el("li", "", line.slice(2)));
+          } else {
+            curUl = null;
+            det.appendChild(el("p", "", line));
+          }
+        });
         var p = el("p");
         var a = el("a", "", "Read the full article");
         a.href = r.wiki.url; a.target = "_blank"; a.rel = "noopener";
