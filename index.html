@@ -507,6 +507,31 @@
   }
 
   // ---------- markdown assembly ----------
+  function esc(s) {
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  // The details block must be pure HTML with no blank lines: Obsidian's
+  // reader splits HTML blocks at blank lines, which breaks the collapsible.
+  function wikiDetailsHtml(wiki) {
+    var parts = ["<details><summary>Wikipedia — " + esc(wiki.title) + "</summary>"];
+    var ulOpen = false;
+    wiki.extract.split("\n").forEach(function (line) {
+      line = line.trim();
+      if (!line) return;
+      if (line.indexOf("- ") === 0) {
+        if (!ulOpen) { parts.push("<ul>"); ulOpen = true; }
+        parts.push("<li>" + esc(line.slice(2)) + "</li>");
+      } else {
+        if (ulOpen) { parts.push("</ul>"); ulOpen = false; }
+        parts.push("<p>" + esc(line) + "</p>");
+      }
+    });
+    if (ulOpen) parts.push("</ul>");
+    parts.push('<p><a href="' + wiki.url + '">Read the full article</a></p>', "</details>");
+    return parts.join("\n");
+  }
+
   function entryMd(word, dict, wiki) {
     var out = ["## " + word, ""];
     if (dict) {
@@ -523,17 +548,7 @@
       out.push("_No dictionary entry found._", "");
     }
     if (wiki) {
-      out.push(
-        "<details>",
-        "<summary>Wikipedia — " + wiki.title + "</summary>",
-        "",
-        wiki.extract,
-        "",
-        '<a href="' + wiki.url + '">Read the full article</a>',
-        "",
-        "</details>",
-        ""
-      );
+      out.push(wikiDetailsHtml(wiki), "");
     } else {
       out.push("_No Wikipedia article found._", "");
     }
