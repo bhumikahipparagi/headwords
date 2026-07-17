@@ -421,15 +421,12 @@
         return { phonetic: phonetic, meanings: posOrder.map(function (pos) {
           var all = posMap[pos];
           var defs = all.slice(0, 2);
-          // If neither shown definition has an example but a later one does,
-          // swap it in so each part of speech carries an example when available.
-          if (!defs.some(function (d) { return d.example; })) {
-            for (var k = 2; k < all.length; k++) {
-              if (all[k].example) {
-                if (defs.length < 2) defs.push(all[k]); else defs[1] = all[k];
-                break;
-              }
-            }
+          // Wiktionary orders senses historically, so the everyday meaning can
+          // sit far down the list ("rampant": heraldry first, "unrestrained"
+          // fourth). A usage example marks a living sense — add the first
+          // later definition that carries one as a third entry.
+          for (var k = 2; k < all.length; k++) {
+            if (all[k].example) { defs.push(all[k]); break; }
           }
           return { pos: pos, defs: defs };
         }) };
@@ -460,9 +457,19 @@
       .then(function (d) { return (d && d.query && d.query.search) || []; });
   }
 
-  // A search-derived replacement must be a concept article, not a media work:
-  // the summary "description" field labels those ("2013 film", "1985 EP", …).
-  var MEDIA_RE = /\b(films?|movie|album|songs?|EP|single|band|TV|television|series|novels?|comics?|video game|magazine|manga|anime|artist|musician|actor|actress)\b/i;
+  // An accepted article must be about the word as a concept, not a specific
+  // named thing: the summary "description" field labels those ("2013 film",
+  // "Norwegian dog", "1985 EP", …).
+  var BAD_TOPIC_RE = /\b(films?|movie|album|songs?|EP|single|band|TV|television|series|novels?|comics?|video game|magazine|manga|anime|artist|musician|actor|actress|singer|rapper|footballer|politician|wrestler|character|episode|dog|cat|horse|racehorse|ship|boat|aircraft|surname|given name|village|town|city|commune|municipality|river|mountain|island|genus|species|moth|butterfly|beetle|spider)\b/i;
+
+  // Accept a hit only if its title clearly relates to the word and it is a
+  // concept article — "rampant" must not resolve to "Attitude (heraldry)",
+  // nor "docile" to a celebrity dog that happens to bear the name.
+  function acceptableWiki(hit, stem) {
+    return !!(hit && !hit.disambig &&
+      hit.title.toLowerCase().indexOf(stem) !== -1 &&
+      !BAD_TOPIC_RE.test(hit.description));
+  }
 
   // The summary endpoint truncates disambiguation pages to the lead line, so
   // fetch the full plain-text extract to get the actual list of meanings.
@@ -497,13 +504,14 @@
   }
 
   function fetchWiki(word) {
+    var stem = word.toLowerCase().slice(0, Math.min(5, word.length));
     return wikiSummary(word).then(function (direct) {
-      if (direct && !direct.disambig) return direct;
       // An ambiguous word: show the disambiguation page's list of meanings.
-      if (direct) return wikiDisambigList(direct);
-      // No article at all — search for the closest real concept article.
+      if (direct && direct.disambig) return wikiDisambigList(direct);
+      if (acceptableWiki(direct, stem)) return direct;
+      // No article, or the word silently redirected somewhere off-topic —
+      // search for a concept article that is clearly about the word.
       return wikiSearch(word).then(function (results) {
-        var stem = word.toLowerCase().slice(0, Math.min(5, word.length));
         var candidates = results.filter(function (res) {
           if (direct && res.title === direct.title) return false;
           return res.title.toLowerCase().indexOf(stem) !== -1;
@@ -513,11 +521,13 @@
           chain = chain.then(function (found) {
             if (found) return found;
             return wikiSummary(res.title).then(function (s) {
-              return (s && !s.disambig && !MEDIA_RE.test(s.description)) ? s : null;
+              return acceptableWiki(s, stem) ? s : null;
             });
           });
         });
-        return chain.then(function (found) { return found || direct; });
+        // A rejected off-topic direct hit stays rejected: an honest
+        // "no article found" beats a heraldry pose or a celebrity dog.
+        return chain;
       });
     });
   }
@@ -785,6 +795,7 @@
   tabPv.addEventListener("click", function () { selectTab(false); });
 })();
 </script>
+
 
 </body>
 </html>
