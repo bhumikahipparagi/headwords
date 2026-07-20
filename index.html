@@ -285,6 +285,7 @@
     cursor: pointer;
   }
   .tab[aria-selected="true"] { background: var(--card); color: var(--ink); box-shadow: var(--shadow); }
+  .masthead .nav { margin-left: auto; }
   .spacer { flex: 1; }
 
   pre.md-out {
@@ -382,9 +383,13 @@
   <header class="masthead">
     <h1>Headwords<span class="slash"> /</span></h1>
     <span class="eyebrow">Dictionary definitions · Wikipedia summaries · Markdown out</span>
+    <div class="tabs nav" role="tablist">
+      <button class="tab" id="navGen" role="tab" aria-selected="true" type="button">Generator</button>
+      <button class="tab" id="navFc" role="tab" aria-selected="false" type="button">Flashcards</button>
+    </div>
   </header>
 
-  <div class="grid">
+  <div id="pageGen" class="grid">
     <section class="card" aria-label="Input">
       <h2>Words in <span class="hint">— one per bullet, or paste output you saved earlier</span></h2>
       <textarea id="input" spellcheck="false" placeholder="- serendipity&#10;- ephemeral&#10;- petrichor" aria-label="Markdown bullet list of words"></textarea>
@@ -407,7 +412,6 @@
         <div class="tabs" role="tablist">
           <button class="tab" id="tabMd" role="tab" aria-selected="true" type="button">Markdown</button>
           <button class="tab" id="tabPv" role="tab" aria-selected="false" type="button">Preview</button>
-          <button class="tab" id="tabFc" role="tab" aria-selected="false" type="button">Cards</button>
         </div>
         <span class="spacer"></span>
         <button id="copyBtn" type="button" disabled>📄 Copy markdown</button>
@@ -415,7 +419,6 @@
       </div>
       <pre class="md-out" id="mdOut" tabindex="0"><span class="empty">Your generated markdown will appear here.</span></pre>
       <div class="preview" id="pvOut" hidden></div>
-      <div class="preview" id="fcOut" hidden></div>
     </section>
 
     <section class="card" id="extrasCard" aria-label="Your additions" hidden>
@@ -425,8 +428,26 @@
     </section>
   </div>
 
+  <div id="pageFc" class="grid" hidden>
+    <section class="card" aria-label="Flashcard input">
+      <h2>Your saved words <span class="hint">— paste anything: markdown, an Obsidian copy, or a bullet list</span></h2>
+      <textarea id="fcInput" spellcheck="false" placeholder="Paste the markdown this tool generated, a copy from Obsidian’s reading view, or a plain bullet list of words"></textarea>
+      <div class="btn-row">
+        <button id="fcPasteBtn" type="button">📋 Paste</button>
+        <button id="fcClearBtn" type="button">Clear</button>
+      </div>
+      <button id="fcGoBtn" class="primary" type="button">Create flashcards</button>
+      <div class="legend" id="fcStatus"></div>
+    </section>
+
+    <section class="card" aria-label="Flashcards">
+      <h2>Flashcards <span class="hint">— similar words grouped together</span></h2>
+      <div class="preview" id="fcOut"><p class="empty">Paste your saved words on the left, then tap “Create flashcards”.</p></div>
+    </section>
+  </div>
+
   <footer>
-    Definitions from the <a href="https://dictionaryapi.dev" target="_blank" rel="noopener" style="color:var(--accent)">Free Dictionary API</a> (the Oxford English Dictionary has no free public API); summaries from English Wikipedia. Wikipedia sections use <code>&lt;details&gt;</code> tags — collapsed by default on GitHub and Obsidian. Build <!--BUILD-->2026-07-20-b17<!--/BUILD-->.
+    Definitions from the <a href="https://dictionaryapi.dev" target="_blank" rel="noopener" style="color:var(--accent)">Free Dictionary API</a> (the Oxford English Dictionary has no free public API); summaries from English Wikipedia. Wikipedia sections use <code>&lt;details&gt;</code> tags — collapsed by default on GitHub and Obsidian. Build <!--BUILD-->2026-07-20-b18<!--/BUILD-->.
   </footer>
 </div>
 
@@ -764,7 +785,7 @@
   }
 
   // ---------- flashcards ----------
-  var FC = { order: [], idx: 0, back: false };
+  var FC = { data: [], order: [], idx: 0, back: false };
   var STOP = {};
   ("that with this from very your they them their there which while would could should about into other others more most some such only also often when where what were been being have having does especially something someone anything usually toward against among between because rather without particular general specific relating pertaining").split(" ").forEach(function (w) { STOP[w] = 1; });
 
@@ -795,11 +816,12 @@
     return union ? inter / union : 0;
   }
 
-  function buildCards() {
+  function buildCards(data) {
+    FC.data = data;
     FC.order = []; FC.idx = 0; FC.back = false;
-    if (!lastResults || !lastResults.length) { renderCard(); return; }
-    var toks = lastResults.map(function (r) { return tokenSet(cardText(r)); });
-    var n = lastResults.length;
+    if (!FC.data || !FC.data.length) { renderCard(); return; }
+    var toks = FC.data.map(function (r) { return tokenSet(cardText(r)); });
+    var n = FC.data.length;
     var used = new Array(n), order = [0], cur = 0;
     used[0] = true;
     for (var k = 1; k < n; k++) {
@@ -819,10 +841,10 @@
     var fc = $("fcOut");
     fc.innerHTML = "";
     if (!FC.order.length) {
-      fc.appendChild(el("p", "empty", "Generate words first — flashcards appear here."));
+      fc.appendChild(el("p", "empty", "Paste your saved words on the left, then tap “Create flashcards”."));
       return;
     }
-    var r = lastResults[FC.order[FC.idx]];
+    var r = FC.data[FC.order[FC.idx]];
     var bar = el("div", "fcbar");
     var prev = el("button", "", "‹ Prev");
     var flip = el("button", "primary", FC.back ? "Show word" : "Flip");
@@ -1022,44 +1044,19 @@
 
   // ---------- generate ----------
   function generate() {
-    var raw = input.value;
     banner.classList.remove("show");
-    var pre = [], bulk = raw;
-    if (raw.indexOf("<details") !== -1) {
-      var pm = parseOwnMarkdown(raw);
-      pre = pm.entries; bulk = pm.rest;
-    } else if (/^Wikipedia\s*—\s*/m.test(raw) || /\[Read the full article\]/.test(raw)) {
-      var pt = parseRenderedText(raw);
-      pre = pt.entries; bulk = pt.rest.join("\n");
-    }
-    var seenPre = {};
-    pre.forEach(function (p) { seenPre[p.word.toLowerCase()] = true; });
-    var words = parseWords(bulk).filter(function (w) { return !seenPre[w.toLowerCase()]; });
-    if (!pre.length && !words.length) {
-      showBanner("Add at least one word — one bullet per line, e.g. “- serendipity”. You can also paste output this tool generated earlier.");
+    var words = parseWords(input.value);
+    if (!words.length) {
+      showBanner("Add at least one word — one bullet per line, e.g. “- serendipity”. (To turn saved output into flashcards, use the Flashcards page.)");
       return;
     }
-    pre.forEach(function (p) {
-      if (p.customDef) {
-        var k = p.word.toLowerCase();
-        EXTRAS[k] = EXTRAS[k] || {};
-        EXTRAS[k].def = p.customDef;
-      }
-    });
     chipsEl.innerHTML = "";
     $("legend").hidden = false;
     mdOut.innerHTML = "";
     mdOut.appendChild(el("span", "empty", "Working…"));
 
-    var results = new Array(pre.length + words.length);
-    pre.forEach(function (p, i) {
-      results[i] = { word: p.word, dict: p.dict, wiki: p.wiki };
-      var chip = makeChip(p.word);
-      chip.set("dict", !!p.dict);
-      chip.set("wiki", !!p.wiki);
-      chip.done();
-    });
-
+    var results = new Array(words.length);
+    var pre = { length: 0 };
     var networkErrors = 0;
     var idx = 0, active = 0, LIMIT = 4;
 
@@ -1120,7 +1117,6 @@
     }).join("\n\n---\n\n").trim() + "\n";
     mdOut.textContent = currentMd;
     renderPreview(lastResults);
-    buildCards();
     copyBtn.disabled = false;
     dlBtn.disabled = false;
   }
@@ -1289,18 +1285,98 @@
   goBtn.addEventListener("click", generate);
 
   // tabs
-  var tabMd = $("tabMd"), tabPv = $("tabPv"), tabFc = $("tabFc");
-  function selectTab(which) {
-    tabMd.setAttribute("aria-selected", which === "md" ? "true" : "false");
-    tabPv.setAttribute("aria-selected", which === "pv" ? "true" : "false");
-    tabFc.setAttribute("aria-selected", which === "fc" ? "true" : "false");
-    mdOut.hidden = which !== "md";
-    pvOut.hidden = which !== "pv";
-    $("fcOut").hidden = which !== "fc";
+  var tabMd = $("tabMd"), tabPv = $("tabPv");
+  function selectTab(md) {
+    tabMd.setAttribute("aria-selected", md ? "true" : "false");
+    tabPv.setAttribute("aria-selected", md ? "false" : "true");
+    mdOut.hidden = !md;
+    pvOut.hidden = md;
   }
-  tabMd.addEventListener("click", function () { selectTab("md"); });
-  tabPv.addEventListener("click", function () { selectTab("pv"); });
-  tabFc.addEventListener("click", function () { selectTab("fc"); });
+  tabMd.addEventListener("click", function () { selectTab(true); });
+  tabPv.addEventListener("click", function () { selectTab(false); });
+
+  // ---------- flashcards page ----------
+  var navGen = $("navGen"), navFc = $("navFc");
+  function showPage(fc) {
+    navGen.setAttribute("aria-selected", fc ? "false" : "true");
+    navFc.setAttribute("aria-selected", fc ? "true" : "false");
+    $("pageGen").hidden = fc;
+    $("extrasCard").hidden = fc || !lastResults;
+    $("pageFc").hidden = !fc;
+  }
+  navGen.addEventListener("click", function () { showPage(false); });
+  navFc.addEventListener("click", function () { showPage(true); });
+
+  var fcInput = $("fcInput");
+  $("fcPasteBtn").addEventListener("click", function () {
+    if (navigator.clipboard && navigator.clipboard.readText) {
+      navigator.clipboard.readText().then(function (text) {
+        if (text) { fcInput.value = text; toast("Pasted ✓"); }
+        else toast("Clipboard is empty");
+      }, function () { toast("Paste blocked — tap the box and paste manually"); });
+    } else {
+      toast("Paste not available — tap the box and paste manually");
+      fcInput.focus();
+    }
+  });
+  $("fcClearBtn").addEventListener("click", function () {
+    fcInput.value = "";
+    $("fcStatus").textContent = "";
+  });
+
+  function createCards() {
+    var raw = fcInput.value;
+    var pre = [], bulk = raw;
+    if (raw.indexOf("<details") !== -1) {
+      var pm = parseOwnMarkdown(raw);
+      pre = pm.entries; bulk = pm.rest;
+    } else if (/^Wikipedia\s*—\s*/m.test(raw) || /\[Read the full article\]/.test(raw) || /^\d+\.\s/m.test(raw)) {
+      var pt = parseRenderedText(raw);
+      pre = pt.entries; bulk = pt.rest.join("\n");
+    }
+    var seen = {};
+    pre.forEach(function (p) { seen[p.word.toLowerCase()] = true; });
+    var words = parseWords(bulk).filter(function (w) { return !seen[w.toLowerCase()]; });
+    if (!pre.length && !words.length) {
+      toast("Paste your saved output or a bullet list of words first");
+      return;
+    }
+    pre.forEach(function (p) {
+      if (p.customDef) {
+        var k = p.word.toLowerCase();
+        EXTRAS[k] = EXTRAS[k] || {};
+        EXTRAS[k].def = p.customDef;
+      }
+    });
+    var data = pre.map(function (p) { return { word: p.word, dict: p.dict, wiki: p.wiki }; });
+    var status = $("fcStatus");
+    var btn = $("fcGoBtn");
+    if (!words.length) {
+      status.textContent = data.length + " cards ready — similar words grouped.";
+      buildCards(data);
+      return;
+    }
+    btn.disabled = true;
+    var done = 0;
+    status.textContent = "Looking up " + words.length + " new word" + (words.length > 1 ? "s" : "") + "…";
+    var fetches = words.map(function (w) {
+      return Promise.all([
+        fetchDict(w).catch(function () { return null; }),
+        fetchWiki(w).catch(function () { return null; })
+      ]).then(function (vals) {
+        done++;
+        status.textContent = "Looking up new words… " + done + " / " + words.length;
+        return { word: w, dict: vals[0], wiki: vals[1] };
+      });
+    });
+    Promise.all(fetches).then(function (fetched) {
+      btn.disabled = false;
+      var all = data.concat(fetched);
+      status.textContent = all.length + " cards ready — similar words grouped.";
+      buildCards(all);
+    });
+  }
+  $("fcGoBtn").addEventListener("click", createCards);
 })();
 </script>
 
