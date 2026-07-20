@@ -448,16 +448,27 @@
       .then(function (r) { if (!r.ok) return null; return r.json(); })
       .then(function (data) {
         if (!data || !data.length) return null;
-        var phoneticCands = [], posOrder = [], posMap = {};
+        var phoneticCands = [], posOrder = [], posMap = {}, audio = "", sourceUrl = "";
         data.forEach(function (entry) {
           if (entry.phonetic) phoneticCands.push(entry.phonetic);
-          (entry.phonetics || []).forEach(function (p) { if (p.text) phoneticCands.push(p.text); });
+          (entry.phonetics || []).forEach(function (p) {
+            if (p.text) phoneticCands.push(p.text);
+            if (!audio && p.audio) audio = p.audio;
+          });
+          if (!sourceUrl && entry.sourceUrls && entry.sourceUrls.length) sourceUrl = entry.sourceUrls[0];
           (entry.meanings || []).forEach(function (m) {
             var pos = m.partOfSpeech || "—";
-            if (!posMap[pos]) { posMap[pos] = []; posOrder.push(pos); }
+            if (!posMap[pos]) { posMap[pos] = { defs: [], syns: [], ants: [] }; posOrder.push(pos); }
             (m.definitions || []).forEach(function (d) {
-              if (d.definition) posMap[pos].push({ def: d.definition, example: d.example || "" });
+              if (d.definition) posMap[pos].defs.push({
+                def: d.definition,
+                example: d.example || "",
+                syns: d.synonyms || [],
+                ants: d.antonyms || []
+              });
             });
+            (m.synonyms || []).forEach(function (s) { if (posMap[pos].syns.indexOf(s) < 0) posMap[pos].syns.push(s); });
+            (m.antonyms || []).forEach(function (s) { if (posMap[pos].ants.indexOf(s) < 0) posMap[pos].ants.push(s); });
           });
         });
         if (!posOrder.length) return null;
@@ -466,18 +477,10 @@
         var phonetic = phoneticCands.filter(function (t) {
           return !/(^[\/\[]\s*-)|(-\s*[\/\]]$)/.test(t.trim());
         }).sort(function (a, b) { return b.length - a.length; })[0] || "";
-        return { phonetic: phonetic, meanings: posOrder.map(function (pos) {
-          var all = posMap[pos];
-          var defs = all.slice(0, 2);
-          // Wiktionary orders senses historically, so the everyday meaning can
-          // sit far down the list ("rampant": heraldry first, "unrestrained"
-          // fourth). A usage example marks a living sense — add the first
-          // later definition that carries one as a third entry.
-          for (var k = 2; k < all.length; k++) {
-            if (all[k].example) { defs.push(all[k]); break; }
-          }
-          return { pos: pos, defs: defs };
-        }) };
+        return { phonetic: phonetic, audio: audio, sourceUrl: sourceUrl,
+          meanings: posOrder.map(function (pos) {
+            return { pos: pos, defs: posMap[pos].defs, syns: posMap[pos].syns, ants: posMap[pos].ants };
+          }) };
       });
   }
 
@@ -625,10 +628,18 @@
         m.defs.forEach(function (d) {
           var li = "<li>" + esc(d.def);
           if (d.example) li += "<blockquote>“" + esc(d.example) + "”</blockquote>";
+          if (d.syns.length) li += "<br><em>synonyms: " + esc(d.syns.join(", ")) + "</em>";
+          if (d.ants.length) li += "<br><em>antonyms: " + esc(d.ants.join(", ")) + "</em>";
           out.push(li + "</li>");
         });
         out.push("</ol>");
+        if (m.syns.length) out.push("<p><em>synonyms: " + esc(m.syns.join(", ")) + "</em></p>");
+        if (m.ants.length) out.push("<p><em>antonyms: " + esc(m.ants.join(", ")) + "</em></p>");
       });
+      var dictLinks = [];
+      if (dict.audio) dictLinks.push('<a href="' + dict.audio + '">🔊 pronunciation</a>');
+      if (dict.sourceUrl) dictLinks.push('<a href="' + dict.sourceUrl + '">Wiktionary entry</a>');
+      if (dictLinks.length) out.push("<p>" + dictLinks.join(" · ") + "</p>");
     } else if (!customDef) {
       out.push("<p><em>No dictionary entry found.</em></p>");
     }
@@ -672,10 +683,27 @@
           m.defs.forEach(function (d) {
             var li = el("li", "", d.def);
             if (d.example) li.appendChild(el("p", "ex", "“" + d.example + "”"));
+            if (d.syns.length) li.appendChild(el("p", "ex", "synonyms: " + d.syns.join(", ")));
+            if (d.ants.length) li.appendChild(el("p", "ex", "antonyms: " + d.ants.join(", ")));
             ol.appendChild(li);
           });
           box.appendChild(ol);
+          if (m.syns.length) box.appendChild(el("p", "ex", "synonyms: " + m.syns.join(", ")));
+          if (m.ants.length) box.appendChild(el("p", "ex", "antonyms: " + m.ants.join(", ")));
         });
+        var linksP = el("p");
+        if (r.dict.audio) {
+          var au = el("a", "", "🔊 pronunciation");
+          au.href = r.dict.audio; au.target = "_blank"; au.rel = "noopener";
+          linksP.appendChild(au);
+        }
+        if (r.dict.sourceUrl) {
+          if (linksP.childNodes.length) linksP.appendChild(document.createTextNode(" · "));
+          var src = el("a", "", "Wiktionary entry");
+          src.href = r.dict.sourceUrl; src.target = "_blank"; src.rel = "noopener";
+          linksP.appendChild(src);
+        }
+        if (linksP.childNodes.length) box.appendChild(linksP);
       } else if (!ex.def) {
         box.appendChild(el("p", "none", "No dictionary entry found."));
       }
