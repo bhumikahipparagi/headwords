@@ -115,6 +115,8 @@
     align-items: start;
   }
   @media (max-width: 860px) { .grid { grid-template-columns: 1fr; } }
+  #extrasCard { grid-column: 1; }
+  @media (max-width: 860px) { #extrasCard { grid-column: auto; } }
 
   .card {
     background: var(--card);
@@ -212,6 +214,39 @@
     display: none;
   }
   .banner.show { display: block; }
+
+  .extras { display: flex; flex-direction: column; gap: 14px; }
+  .exrow {
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .exrow .w { font-family: var(--serif); font-weight: 700; font-size: 1.05rem; }
+  .exrow .frow { display: flex; gap: 8px; align-items: stretch; }
+  .exrow textarea {
+    flex: 1;
+    width: auto;
+    min-height: 56px;
+    font-family: var(--sans);
+    font-size: 0.95rem;
+    line-height: 1.4;
+  }
+  .exrow input {
+    flex: 1;
+    min-width: 0;
+    background: var(--code-bg);
+    color: var(--ink);
+    border: 1px solid var(--rule);
+    border-radius: 8px;
+    padding: 10px 12px;
+    font-size: 0.95rem;
+    min-height: 46px;
+  }
+  .exrow input:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .exrow .mini { min-height: 46px; padding: 0 14px; flex: 0 0 auto; }
 
   .out-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
   .tabs { display: flex; gap: 4px; background: var(--code-bg); border: 1px solid var(--rule); border-radius: 8px; padding: 3px; }
@@ -357,6 +392,12 @@
       <pre class="md-out" id="mdOut" tabindex="0"><span class="empty">Your generated markdown will appear here.</span></pre>
       <div class="preview" id="pvOut" hidden></div>
     </section>
+
+    <section class="card" id="extrasCard" aria-label="Your additions" hidden>
+      <h2>Your additions <span class="hint">— optional, per word</span></h2>
+      <div class="extras" id="extrasList"></div>
+      <button id="applyBtn" class="primary" type="button">Apply &amp; rebuild markdown</button>
+    </section>
   </div>
 
   <footer>
@@ -372,6 +413,12 @@
   var input = $("input"), chipsEl = $("chips"), mdOut = $("mdOut"), pvOut = $("pvOut");
   var goBtn = $("goBtn"), copyBtn = $("copyBtn"), dlBtn = $("dlBtn"), banner = $("banner");
   var currentMd = "";
+  var lastResults = null;
+  // Per-word user additions, keyed by lowercased word:
+  // { def: "pasted definition", url: "wikipedia link", wikiData: fetched summary }
+  var EXTRAS = {};
+
+  function extrasFor(word) { return EXTRAS[word.toLowerCase()] || {}; }
 
   var SAMPLE = "- serendipity\n- petrichor\n- algorithm\n- ephemeral";
   var BLOCKED_MSG = "This viewer blocks the page’s internet access (claude.ai’s artifact sandbox does this), so dictionary and Wikipedia lookups can’t run here. Open your saved copy of headwords.html directly in a browser — everything works there.";
@@ -433,8 +480,8 @@
       });
   }
 
-  function wikiSummary(title) {
-    return fetch("https://en.wikipedia.org/api/rest_v1/page/summary/" +
+  function wikiSummary(title, host) {
+    return fetch("https://" + (host || "en.wikipedia.org") + "/api/rest_v1/page/summary/" +
         encodeURIComponent(title.replace(/ /g, "_")) + "?redirect=true")
       .then(function (r) { if (!r.ok) return null; return r.json(); })
       .then(function (d) {
@@ -560,10 +607,17 @@
 
   // Each word is itself a collapsed <details> block (word + phonetic as the
   // summary), built with the same no-blank-lines pure-HTML rule as above.
-  function entryMd(word, dict, wiki) {
+  function entryMd(word, dict, wiki, customDef) {
     var head = "<strong>" + esc(word) + "</strong>";
     if (dict && dict.phonetic) head += " <em>" + esc(dict.phonetic) + "</em>";
     var out = ["<details><summary>" + head + "</summary>"];
+    if (customDef) {
+      out.push("<p><strong>my definition</strong></p>");
+      customDef.split(/\n+/).forEach(function (ln) {
+        ln = ln.trim();
+        if (ln) out.push("<p>" + esc(ln) + "</p>");
+      });
+    }
     if (dict) {
       dict.meanings.forEach(function (m) {
         out.push("<p><strong>" + esc(m.pos) + "</strong></p>", "<ol>");
@@ -574,7 +628,7 @@
         });
         out.push("</ol>");
       });
-    } else {
+    } else if (!customDef) {
       out.push("<p><em>No dictionary entry found.</em></p>");
     }
     if (wiki) {
@@ -597,10 +651,19 @@
   function renderPreview(results) {
     pvOut.innerHTML = "";
     results.forEach(function (r) {
+      var ex = extrasFor(r.word);
+      var wiki = ex.wikiData || r.wiki;
       var box = el("details", "entry");
       var sum = el("summary", "hw", r.word);
       if (r.dict && r.dict.phonetic) sum.appendChild(el("span", "phon", " " + r.dict.phonetic));
       box.appendChild(sum);
+      if (ex.def) {
+        box.appendChild(el("p", "pos", "my definition"));
+        ex.def.split(/\n+/).forEach(function (ln) {
+          ln = ln.trim();
+          if (ln) box.appendChild(el("p", "", ln));
+        });
+      }
       if (r.dict) {
         r.dict.meanings.forEach(function (m) {
           box.appendChild(el("p", "pos", m.pos));
@@ -612,14 +675,14 @@
           });
           box.appendChild(ol);
         });
-      } else {
+      } else if (!ex.def) {
         box.appendChild(el("p", "none", "No dictionary entry found."));
       }
-      if (r.wiki) {
+      if (wiki) {
         var det = el("details");
-        det.appendChild(el("summary", "", "Wikipedia — " + r.wiki.title));
+        det.appendChild(el("summary", "", "Wikipedia — " + wiki.title));
         var curUl = null;
-        r.wiki.extract.split("\n").forEach(function (line) {
+        wiki.extract.split("\n").forEach(function (line) {
           line = line.trim();
           if (!line) { curUl = null; return; }
           if (line.indexOf("- ") === 0) {
@@ -632,7 +695,7 @@
         });
         var p = el("p");
         var a = el("a", "", "Read the full article");
-        a.href = r.wiki.url; a.target = "_blank"; a.rel = "noopener";
+        a.href = wiki.url; a.target = "_blank"; a.rel = "noopener";
         p.appendChild(a);
         det.appendChild(p);
         box.appendChild(det);
@@ -713,15 +776,129 @@
         showBanner(BLOCKED_MSG);
         return;
       }
-      currentMd = results.map(function (r) { return entryMd(r.word, r.dict, r.wiki); }).join("\n\n---\n\n").trim() + "\n";
-      mdOut.textContent = currentMd;
-      renderPreview(results);
-      copyBtn.disabled = false;
-      dlBtn.disabled = false;
+      lastResults = results;
+      buildExtrasUI(results);
+      $("extrasCard").hidden = false;
+      rebuildOutput();
     }
 
     next();
   }
+
+  // ---------- per-word extras ----------
+  function rebuildOutput() {
+    if (!lastResults) return;
+    currentMd = lastResults.map(function (r) {
+      var ex = extrasFor(r.word);
+      return entryMd(r.word, r.dict, ex.wikiData || r.wiki, ex.def || "");
+    }).join("\n\n---\n\n").trim() + "\n";
+    mdOut.textContent = currentMd;
+    renderPreview(lastResults);
+    copyBtn.disabled = false;
+    dlBtn.disabled = false;
+  }
+
+  function miniPaste(target) {
+    var b = document.createElement("button");
+    b.type = "button";
+    b.className = "mini";
+    b.textContent = "📋";
+    b.title = "Paste from clipboard";
+    b.addEventListener("click", function () {
+      if (navigator.clipboard && navigator.clipboard.readText) {
+        navigator.clipboard.readText().then(function (t) {
+          if (t) { target.value = t.trim(); toast("Pasted ✓"); }
+          else toast("Clipboard is empty");
+        }, function () { toast("Paste blocked — tap the field and paste manually"); });
+      } else {
+        toast("Paste not available — tap the field and paste manually");
+        target.focus();
+      }
+    });
+    return b;
+  }
+
+  function buildExtrasUI(results) {
+    var list = $("extrasList");
+    list.innerHTML = "";
+    results.forEach(function (r) {
+      var saved = extrasFor(r.word);
+      var row = el("div", "exrow");
+      row.appendChild(el("div", "w", r.word));
+      var ta = document.createElement("textarea");
+      ta.rows = 2;
+      ta.placeholder = "Your own definition — paste from Google (optional)";
+      ta.value = saved.def || "";
+      var taRow = el("div", "frow");
+      taRow.appendChild(ta);
+      taRow.appendChild(miniPaste(ta));
+      row.appendChild(taRow);
+      var url = document.createElement("input");
+      url.type = "url";
+      url.placeholder = "Wikipedia article link (optional)";
+      url.value = saved.url || "";
+      var urlRow = el("div", "frow");
+      urlRow.appendChild(url);
+      urlRow.appendChild(miniPaste(url));
+      row.appendChild(urlRow);
+      row._key = r.word.toLowerCase();
+      row._ta = ta;
+      row._url = url;
+      list.appendChild(row);
+    });
+  }
+
+  function parseWikiUrl(u) {
+    try {
+      var url = new URL(u);
+      var host = url.hostname.replace(".m.wikipedia.org", ".wikipedia.org");
+      if (!/\.wikipedia\.org$/.test(host)) return null;
+      var mm = url.pathname.match(/\/wiki\/([^#?]+)/);
+      if (!mm) return null;
+      return { host: host, title: decodeURIComponent(mm[1]).replace(/_/g, " ") };
+    } catch (e) { return null; }
+  }
+
+  function applyExtras() {
+    var rows = Array.prototype.slice.call($("extrasList").children);
+    var fetches = [];
+    rows.forEach(function (row) {
+      var prev = EXTRAS[row._key] || {};
+      var def = row._ta.value.trim();
+      var urlVal = row._url.value.trim();
+      var entry = {
+        def: def,
+        url: urlVal,
+        wikiData: (urlVal && prev.url === urlVal) ? prev.wikiData : null
+      };
+      EXTRAS[row._key] = entry;
+      if (urlVal && !entry.wikiData) {
+        var parsed = parseWikiUrl(urlVal);
+        if (!parsed) {
+          toast("Not a Wikipedia link for “" + row._key + "”");
+          return;
+        }
+        fetches.push(
+          wikiSummary(parsed.title, parsed.host).then(function (s) {
+            if (s) entry.wikiData = s;
+            else toast("Couldn’t read the article for “" + row._key + "”");
+          }).catch(function () {
+            toast("Couldn’t read the article for “" + row._key + "”");
+          })
+        );
+      }
+    });
+    var btn = $("applyBtn");
+    btn.disabled = true;
+    btn.textContent = "Rebuilding…";
+    Promise.all(fetches).then(function () {
+      rebuildOutput();
+      btn.disabled = false;
+      btn.textContent = "Apply & rebuild markdown";
+      toast("Markdown rebuilt ✓");
+    });
+  }
+  $("applyBtn").addEventListener("click", applyExtras);
 
   function showBanner(msg) {
     banner.textContent = msg;
@@ -780,6 +957,7 @@
   $("clearBtn").addEventListener("click", function () {
     input.value = ""; chipsEl.innerHTML = ""; $("legend").hidden = true;
     banner.classList.remove("show");
+    $("extrasCard").hidden = true;
   });
   goBtn.addEventListener("click", generate);
 
@@ -795,6 +973,7 @@
   tabPv.addEventListener("click", function () { selectTab(false); });
 })();
 </script>
+
 
 
 </body>
