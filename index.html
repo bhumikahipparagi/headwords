@@ -613,7 +613,7 @@
     if (dict && dict.phonetic) head += " <em>" + esc(dict.phonetic) + "</em>";
     var out = ["<details><summary>" + head + "</summary>"];
     if (customDef) {
-      out.push("<p><strong>my definition</strong></p>");
+      out.push("<p><strong>ALSO</strong></p>");
       customDef.split(/\n+/).forEach(function (ln) {
         ln = ln.trim();
         if (ln) out.push("<p>" + esc(ln) + "</p>");
@@ -659,7 +659,7 @@
       if (r.dict && r.dict.phonetic) sum.appendChild(el("span", "phon", " " + r.dict.phonetic));
       box.appendChild(sum);
       if (ex.def) {
-        box.appendChild(el("p", "pos", "my definition"));
+        box.appendChild(el("p", "pos", "ALSO"));
         ex.def.split(/\n+/).forEach(function (ln) {
           ln = ln.trim();
           if (ln) box.appendChild(el("p", "", ln));
