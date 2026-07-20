@@ -6,69 +6,69 @@
 <title>Headwords — Dictionary + Wikipedia Markdown</title>
 <style>
   :root {
-    --paper: #F5F6F3;
-    --card: #FFFFFF;
-    --ink: #20242C;
-    --muted: #5C6470;
-    --rule: #DBDEE3;
-    --accent: #24457A;
-    --accent-hover: #1B3560;
-    --accent-soft: #E8EDF5;
-    --on-accent: #FFFFFF;
-    --ok: #2F7D4F;
-    --warn: #A5682A;
-    --code-bg: #F0F1EE;
-    --shadow: 0 1px 3px rgba(32, 36, 44, 0.07);
+    --paper: #F4E9D6;
+    --card: #FBF2E1;
+    --ink: #3A2E20;
+    --muted: #8A785F;
+    --rule: #E1D2B4;
+    --accent: #8B5E34;
+    --accent-hover: #6F4A26;
+    --accent-soft: #EFE1C4;
+    --on-accent: #FBF2E1;
+    --ok: #5F7D4A;
+    --warn: #B0722A;
+    --code-bg: #EFE3C9;
+    --shadow: 0 1px 3px rgba(75, 58, 38, 0.16);
     --serif: "Iowan Old Style", "Palatino Nova", Palatino, "Book Antiqua", Georgia, serif;
     --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
     --mono: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
   }
   @media (prefers-color-scheme: dark) {
     :root {
-      --paper: #12151B;
-      --card: #1A1E26;
-      --ink: #E6E8EC;
-      --muted: #99A1AD;
-      --rule: #2C323D;
-      --accent: #8AAEE0;
-      --accent-hover: #A5C2EA;
-      --accent-soft: #223046;
-      --on-accent: #0F1420;
-      --ok: #6FBF8F;
-      --warn: #D9A05B;
-      --code-bg: #14181F;
-      --shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+      --paper: #1F1912;
+      --card: #2A2117;
+      --ink: #E9DAC0;
+      --muted: #A28F76;
+      --rule: #3E3322;
+      --accent: #D9A75F;
+      --accent-hover: #E7BC7E;
+      --accent-soft: #382C1B;
+      --on-accent: #241B0F;
+      --ok: #8FAE71;
+      --warn: #D19A55;
+      --code-bg: #181309;
+      --shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
     }
   }
   :root[data-theme="light"] {
-    --paper: #F5F6F3;
-    --card: #FFFFFF;
-    --ink: #20242C;
-    --muted: #5C6470;
-    --rule: #DBDEE3;
-    --accent: #24457A;
-    --accent-hover: #1B3560;
-    --accent-soft: #E8EDF5;
-    --on-accent: #FFFFFF;
-    --ok: #2F7D4F;
-    --warn: #A5682A;
-    --code-bg: #F0F1EE;
-    --shadow: 0 1px 3px rgba(32, 36, 44, 0.07);
+    --paper: #F4E9D6;
+    --card: #FBF2E1;
+    --ink: #3A2E20;
+    --muted: #8A785F;
+    --rule: #E1D2B4;
+    --accent: #8B5E34;
+    --accent-hover: #6F4A26;
+    --accent-soft: #EFE1C4;
+    --on-accent: #FBF2E1;
+    --ok: #5F7D4A;
+    --warn: #B0722A;
+    --code-bg: #EFE3C9;
+    --shadow: 0 1px 3px rgba(75, 58, 38, 0.16);
   }
   :root[data-theme="dark"] {
-    --paper: #12151B;
-    --card: #1A1E26;
-    --ink: #E6E8EC;
-    --muted: #99A1AD;
-    --rule: #2C323D;
-    --accent: #8AAEE0;
-    --accent-hover: #A5C2EA;
-    --accent-soft: #223046;
-    --on-accent: #0F1420;
-    --ok: #6FBF8F;
-    --warn: #D9A05B;
-    --code-bg: #14181F;
-    --shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+    --paper: #1F1912;
+    --card: #2A2117;
+    --ink: #E9DAC0;
+    --muted: #A28F76;
+    --rule: #3E3322;
+    --accent: #D9A75F;
+    --accent-hover: #E7BC7E;
+    --accent-soft: #382C1B;
+    --on-accent: #241B0F;
+    --ok: #8FAE71;
+    --warn: #D19A55;
+    --code-bg: #181309;
+    --shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
   }
 
   * { box-sizing: border-box; }
@@ -77,9 +77,9 @@
     margin: 0;
     background: var(--paper);
     color: var(--ink);
-    font-family: var(--sans);
+    font-family: var(--serif);
     font-size: 16px;
-    line-height: 1.5;
+    line-height: 1.55;
   }
 
   .wrap { max-width: 1180px; margin: 0 auto; padding: 24px 20px 64px; }
@@ -271,6 +271,32 @@
   .fcard .fw.sm { font-size: 1.4rem; margin-bottom: 4px; }
   .fcard .hintTap { color: var(--muted); font-size: 0.8rem; margin-top: 20px; }
 
+  .preview.fullscreen {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    margin: 0;
+    max-height: none;
+    background: var(--paper);
+    padding: 16px clamp(16px, 6vw, 72px) 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    overflow: hidden;
+  }
+  .preview.fullscreen .fcbar { margin-bottom: 0; width: 100%; max-width: 860px; margin-left: auto; margin-right: auto; }
+  .preview.fullscreen .fcard {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    width: 100%;
+    max-width: 860px;
+    margin: 0 auto;
+    background: var(--card);
+  }
+  .preview.fullscreen .fcard .fw { font-size: clamp(2.4rem, 7vw, 3.4rem); }
+  .preview.fullscreen .fcard .fw.sm { font-size: 1.7rem; }
+
   .out-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
   .tabs { display: flex; gap: 4px; background: var(--code-bg); border: 1px solid var(--rule); border-radius: 8px; padding: 3px; }
   .tab {
@@ -447,7 +473,7 @@
   </div>
 
   <footer>
-    Definitions from the <a href="https://dictionaryapi.dev" target="_blank" rel="noopener" style="color:var(--accent)">Free Dictionary API</a> (the Oxford English Dictionary has no free public API); summaries from English Wikipedia. Wikipedia sections use <code>&lt;details&gt;</code> tags — collapsed by default on GitHub and Obsidian. Build <!--BUILD-->2026-07-20-b19<!--/BUILD-->.
+    Definitions from the <a href="https://dictionaryapi.dev" target="_blank" rel="noopener" style="color:var(--accent)">Free Dictionary API</a> (the Oxford English Dictionary has no free public API); summaries from English Wikipedia. Wikipedia sections use <code>&lt;details&gt;</code> tags — collapsed by default on GitHub and Obsidian. Build <!--BUILD-->2026-07-20-b20<!--/BUILD-->.
   </footer>
 </div>
 
@@ -785,7 +811,21 @@
   }
 
   // ---------- flashcards ----------
-  var FC = { data: [], order: [], idx: 0, back: false };
+  var FC = { data: [], order: [], idx: 0, back: false, full: false };
+
+  function setFullscreen(on) {
+    FC.full = on;
+    $("fcOut").classList.toggle("fullscreen", on);
+    renderCard();
+  }
+  document.addEventListener("keydown", function (e) {
+    if (!FC.full) return;
+    if (e.key === "Escape") { setFullscreen(false); return; }
+    if (!FC.order.length) return;
+    if (e.key === "ArrowRight") { FC.idx = (FC.idx + 1) % FC.order.length; FC.back = false; renderCard(); }
+    else if (e.key === "ArrowLeft") { FC.idx = (FC.idx - 1 + FC.order.length) % FC.order.length; FC.back = false; renderCard(); }
+    else if (e.key === " " || e.key === "Enter") { e.preventDefault(); FC.back = !FC.back; renderCard(); }
+  });
   var STOP = {};
   ("that with this from very your they them their there which while would could should about into other others more most some such only also often when where what were been being have having does especially something someone anything usually toward against among between because rather without particular general specific relating pertaining").split(" ").forEach(function (w) { STOP[w] = 1; });
 
@@ -834,7 +874,7 @@
       used[best] = true; order.push(best); cur = best;
     }
     FC.order = order;
-    renderCard();
+    setFullscreen(true);
   }
 
   function renderCard() {
@@ -851,6 +891,12 @@
     var next = el("button", "", "Next ›");
     bar.appendChild(prev); bar.appendChild(flip); bar.appendChild(next);
     bar.appendChild(el("span", "count", (FC.idx + 1) + " / " + FC.order.length + " · similar words grouped"));
+    if (FC.full) {
+      bar.appendChild(el("span", "spacer"));
+      var exit = el("button", "", "✕ Exit");
+      exit.addEventListener("click", function () { setFullscreen(false); });
+      bar.appendChild(exit);
+    }
     fc.appendChild(bar);
     var card = el("div", "fcard" + (FC.back ? "" : " front"));
     if (!FC.back) {
