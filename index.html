@@ -249,6 +249,28 @@
   .exrow input:focus { outline: 2px solid var(--accent); outline-offset: 2px; }
   .exrow .mini { min-height: 46px; padding: 0 14px; flex: 0 0 auto; }
 
+  .fcbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+  .fcbar .count { font-size: 0.85rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+  .fcbar button.primary { flex: 0 1 auto; }
+  .fcard {
+    border: 1px solid var(--rule);
+    border-radius: 12px;
+    background: var(--code-bg);
+    min-height: 320px;
+    padding: 22px 24px;
+    cursor: pointer;
+  }
+  .fcard.front {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+  }
+  .fcard .fw { font-family: var(--serif); font-size: 2.1rem; font-weight: 700; }
+  .fcard .fw.sm { font-size: 1.4rem; margin-bottom: 4px; }
+  .fcard .hintTap { color: var(--muted); font-size: 0.8rem; margin-top: 20px; }
+
   .out-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
   .tabs { display: flex; gap: 4px; background: var(--code-bg); border: 1px solid var(--rule); border-radius: 8px; padding: 3px; }
   .tab {
@@ -364,7 +386,7 @@
 
   <div class="grid">
     <section class="card" aria-label="Input">
-      <h2>Words in <span class="hint">— one per bullet</span></h2>
+      <h2>Words in <span class="hint">— one per bullet, or paste output you saved earlier</span></h2>
       <textarea id="input" spellcheck="false" placeholder="- serendipity&#10;- ephemeral&#10;- petrichor" aria-label="Markdown bullet list of words"></textarea>
       <div class="btn-row">
         <button id="pasteBtn" type="button">📋 Paste</button>
@@ -385,6 +407,7 @@
         <div class="tabs" role="tablist">
           <button class="tab" id="tabMd" role="tab" aria-selected="true" type="button">Markdown</button>
           <button class="tab" id="tabPv" role="tab" aria-selected="false" type="button">Preview</button>
+          <button class="tab" id="tabFc" role="tab" aria-selected="false" type="button">Cards</button>
         </div>
         <span class="spacer"></span>
         <button id="copyBtn" type="button" disabled>📄 Copy markdown</button>
@@ -392,6 +415,7 @@
       </div>
       <pre class="md-out" id="mdOut" tabindex="0"><span class="empty">Your generated markdown will appear here.</span></pre>
       <div class="preview" id="pvOut" hidden></div>
+      <div class="preview" id="fcOut" hidden></div>
     </section>
 
     <section class="card" id="extrasCard" aria-label="Your additions" hidden>
@@ -402,7 +426,7 @@
   </div>
 
   <footer>
-    Definitions from the <a href="https://dictionaryapi.dev" target="_blank" rel="noopener" style="color:var(--accent)">Free Dictionary API</a> (the Oxford English Dictionary has no free public API); summaries from English Wikipedia. Wikipedia sections use <code>&lt;details&gt;</code> tags — collapsed by default on GitHub and Obsidian. Build <!--BUILD-->2026-07-20-b16<!--/BUILD-->.
+    Definitions from the <a href="https://dictionaryapi.dev" target="_blank" rel="noopener" style="color:var(--accent)">Free Dictionary API</a> (the Oxford English Dictionary has no free public API); summaries from English Wikipedia. Wikipedia sections use <code>&lt;details&gt;</code> tags — collapsed by default on GitHub and Obsidian. Build <!--BUILD-->2026-07-20-b17<!--/BUILD-->.
   </footer>
 </div>
 
@@ -435,7 +459,7 @@
     var seen = {}, words = [];
     text.split(/\r?\n/).forEach(function (line) {
       var w = line.replace(/^[\s>]*(?:[-*+]|\d+[.)])\s+/, "").replace(/[*_`~\[\]]/g, "").trim();
-      if (!w) return;
+      if (!w || /^-+$/.test(w) || w.length > 60) return;
       var key = w.toLowerCase();
       if (!seen[key]) { seen[key] = true; words.push(w); }
     });
@@ -660,15 +684,9 @@
     return n;
   }
 
-  function renderPreview(results) {
-    pvOut.innerHTML = "";
-    results.forEach(function (r) {
+  function appendEntryBody(box, r) {
       var ex = extrasFor(r.word);
       var wiki = ex.wikiData || r.wiki;
-      var box = el("details", "entry");
-      var sum = el("summary", "hw", r.word);
-      if (r.dict && r.dict.phonetic) sum.appendChild(el("span", "phon", " " + r.dict.phonetic));
-      box.appendChild(sum);
       if (ex.def) {
         box.appendChild(el("p", "pos", "ALSO"));
         ex.def.split(/\n+/).forEach(function (ln) {
@@ -731,8 +749,104 @@
       } else {
         box.appendChild(el("p", "none", "No Wikipedia article found."));
       }
+  }
+
+  function renderPreview(results) {
+    pvOut.innerHTML = "";
+    results.forEach(function (r) {
+      var box = el("details", "entry");
+      var sum = el("summary", "hw", r.word);
+      if (r.dict && r.dict.phonetic) sum.appendChild(el("span", "phon", " " + r.dict.phonetic));
+      box.appendChild(sum);
+      appendEntryBody(box, r);
       pvOut.appendChild(box);
     });
+  }
+
+  // ---------- flashcards ----------
+  var FC = { order: [], idx: 0, back: false };
+  var STOP = {};
+  ("that with this from very your they them their there which while would could should about into other others more most some such only also often when where what were been being have having does especially something someone anything usually toward against among between because rather without particular general specific relating pertaining").split(" ").forEach(function (w) { STOP[w] = 1; });
+
+  function cardText(r) {
+    var ex = extrasFor(r.word);
+    var parts = [r.word, ex.def || ""];
+    if (r.dict) r.dict.meanings.forEach(function (m) {
+      m.defs.forEach(function (d) { parts.push(d.def, d.example, d.syns.join(" "), d.ants.join(" ")); });
+      parts.push(m.syns.join(" "), m.ants.join(" "));
+    });
+    var wiki = ex.wikiData || r.wiki;
+    if (wiki) parts.push(wiki.title, wiki.extract);
+    return parts.join(" ");
+  }
+
+  function tokenSet(text) {
+    var set = {};
+    (text.toLowerCase().match(/[a-z]{4,}/g) || []).forEach(function (t) {
+      if (!STOP[t]) set[t] = 1;
+    });
+    return set;
+  }
+
+  function jaccard(a, b) {
+    var inter = 0, union = 0, k;
+    for (k in a) { union++; if (b[k]) inter++; }
+    for (k in b) { if (!a[k]) union++; }
+    return union ? inter / union : 0;
+  }
+
+  function buildCards() {
+    FC.order = []; FC.idx = 0; FC.back = false;
+    if (!lastResults || !lastResults.length) { renderCard(); return; }
+    var toks = lastResults.map(function (r) { return tokenSet(cardText(r)); });
+    var n = lastResults.length;
+    var used = new Array(n), order = [0], cur = 0;
+    used[0] = true;
+    for (var k = 1; k < n; k++) {
+      var best = -1, bs = -1;
+      for (var j = 0; j < n; j++) {
+        if (used[j]) continue;
+        var s = jaccard(toks[cur], toks[j]);
+        if (s > bs) { bs = s; best = j; }
+      }
+      used[best] = true; order.push(best); cur = best;
+    }
+    FC.order = order;
+    renderCard();
+  }
+
+  function renderCard() {
+    var fc = $("fcOut");
+    fc.innerHTML = "";
+    if (!FC.order.length) {
+      fc.appendChild(el("p", "empty", "Generate words first — flashcards appear here."));
+      return;
+    }
+    var r = lastResults[FC.order[FC.idx]];
+    var bar = el("div", "fcbar");
+    var prev = el("button", "", "‹ Prev");
+    var flip = el("button", "primary", FC.back ? "Show word" : "Flip");
+    var next = el("button", "", "Next ›");
+    bar.appendChild(prev); bar.appendChild(flip); bar.appendChild(next);
+    bar.appendChild(el("span", "count", (FC.idx + 1) + " / " + FC.order.length + " · similar words grouped"));
+    fc.appendChild(bar);
+    var card = el("div", "fcard" + (FC.back ? "" : " front"));
+    if (!FC.back) {
+      card.appendChild(el("div", "fw", r.word));
+      if (r.dict && r.dict.phonetic) card.appendChild(el("p", "phon", r.dict.phonetic));
+      card.appendChild(el("p", "hintTap", "tap card to reveal meaning"));
+    } else {
+      card.appendChild(el("div", "fw sm", r.word));
+      appendEntryBody(card, r);
+    }
+    card.addEventListener("click", function (e) {
+      if (e.target.closest("a, details, summary, button")) return;
+      FC.back = !FC.back; renderCard();
+    });
+    prev.addEventListener("click", function () { FC.idx = (FC.idx - 1 + FC.order.length) % FC.order.length; FC.back = false; renderCard(); });
+    next.addEventListener("click", function () { FC.idx = (FC.idx + 1) % FC.order.length; FC.back = false; renderCard(); });
+    flip.addEventListener("click", function () { FC.back = !FC.back; renderCard(); });
+    fc.appendChild(card);
   }
 
   // ---------- status chips ----------
@@ -750,51 +864,209 @@
     };
   }
 
+  // ---------- pasted-output parsers ----------
+  // Parse the raw markdown this tool generated (pasted back into the input).
+  function parseOwnMarkdown(raw) {
+    var doc = new DOMParser().parseFromString(raw, "text/html");
+    var entries = [], restText = [];
+    Array.prototype.forEach.call(doc.body.childNodes, function (node) {
+      if (node.nodeType === 3) { restText.push(node.textContent); return; }
+      if (node.tagName !== "DETAILS") { restText.push(node.textContent || ""); return; }
+      var sum = node.querySelector(":scope > summary");
+      if (!sum || !sum.querySelector("strong")) return;
+      var word = sum.querySelector("strong").textContent.trim();
+      var phEl = sum.querySelector("em");
+      var dict = { phonetic: phEl ? phEl.textContent.trim() : "", audio: "", sourceUrl: "", meanings: [] };
+      var customDef = "", wiki = null, meaning = null, mode = "";
+      Array.prototype.forEach.call(node.children, function (ch) {
+        if (ch.tagName === "SUMMARY") return;
+        if (ch.tagName === "P") {
+          var strong = ch.querySelector("strong");
+          if (strong && strong.textContent === "ALSO") { mode = "also"; return; }
+          if (strong) { meaning = { pos: strong.textContent, defs: [], syns: [], ants: [] }; dict.meanings.push(meaning); mode = ""; return; }
+          var links = ch.querySelectorAll("a");
+          if (links.length) {
+            Array.prototype.forEach.call(links, function (a) {
+              if (/pronunciation/.test(a.textContent)) dict.audio = a.getAttribute("href");
+              else if (/Wiktionary/.test(a.textContent)) dict.sourceUrl = a.getAttribute("href");
+            });
+            return;
+          }
+          var em = ch.querySelector("em");
+          if (em) {
+            var t = em.textContent;
+            var sm = t.match(/^synonyms:\s*(.+)$/);
+            var am = t.match(/^antonyms:\s*(.+)$/);
+            if (sm && meaning) { meaning.syns = sm[1].split(/,\s*/); return; }
+            if (am && meaning) { meaning.ants = am[1].split(/,\s*/); return; }
+            if (/^No /.test(t)) return;
+          }
+          if (mode === "also") customDef += (customDef ? "\n" : "") + ch.textContent.trim();
+          return;
+        }
+        if (ch.tagName === "OL" && meaning) {
+          Array.prototype.forEach.call(ch.children, function (li) {
+            var d = { def: "", example: "", syns: [], ants: [] };
+            var bq = li.querySelector("blockquote");
+            if (bq) d.example = bq.textContent.trim().replace(/^[“"]/, "").replace(/[”"]$/, "");
+            Array.prototype.forEach.call(li.querySelectorAll("em"), function (em2) {
+              var t2 = em2.textContent;
+              var s2 = t2.match(/^synonyms:\s*(.+)$/);
+              var a2 = t2.match(/^antonyms:\s*(.+)$/);
+              if (s2) d.syns = s2[1].split(/,\s*/);
+              if (a2) d.ants = a2[1].split(/,\s*/);
+            });
+            var clone = li.cloneNode(true);
+            Array.prototype.forEach.call(clone.querySelectorAll("blockquote, em, br"), function (x) { x.remove(); });
+            d.def = clone.textContent.trim();
+            if (d.def) meaning.defs.push(d);
+          });
+          return;
+        }
+        if (ch.tagName === "DETAILS") {
+          var wsum = ch.querySelector(":scope > summary");
+          var title = wsum ? wsum.textContent.replace(/^Wikipedia\s*—\s*/, "").trim() : "";
+          var extractParts = [], url = "";
+          Array.prototype.forEach.call(ch.children, function (n2) {
+            if (n2.tagName === "P") {
+              var a2 = n2.querySelector("a");
+              if (a2 && /Read the full article/.test(a2.textContent)) { url = a2.getAttribute("href"); return; }
+              extractParts.push(n2.textContent.trim());
+            } else if (n2.tagName === "UL") {
+              Array.prototype.forEach.call(n2.children, function (li2) { extractParts.push("- " + li2.textContent.trim()); });
+            }
+          });
+          wiki = { title: title, extract: extractParts.join("\n"), url: url, description: "", disambig: false };
+        }
+      });
+      if (!dict.meanings.length) dict = null;
+      entries.push({ word: word, dict: dict, wiki: wiki, customDef: customDef });
+    });
+    return { entries: entries, rest: restText.join("\n") };
+  }
+
+  // Parse the rendered plain text of previously generated output (copied from
+  // a markdown reader instead of the raw source). Best-effort, line-based.
+  var POS_RE = /^(noun|verb|adjective|adverb|interjection|preposition|conjunction|pronoun|determiner|numeral|exclamation|particle)$/i;
+  function parseRenderedText(raw) {
+    var entries = [], rest = [];
+    var cur = null, meaning = null, lastDef = null, mode = "", wiki = null, wikiLines = [];
+    function closeEntry() {
+      if (cur) { if (wiki) cur.wiki = wiki; entries.push(cur); }
+      cur = null; meaning = null; lastDef = null; wiki = null; wikiLines = []; mode = "";
+    }
+    raw.split(/\r?\n/).forEach(function (line0) {
+      var line = line0.trim();
+      if (!line) return;
+      var m;
+      if (/\[?🔊/.test(line) || /\[Wiktionary entry\]/.test(line)) {
+        if (cur && cur.dict) {
+          if ((m = line.match(/🔊[^(]*\((https?:[^)]+)\)/))) cur.dict.audio = m[1];
+          if ((m = line.match(/\[Wiktionary entry\]\((https?:[^)]+)\)/))) cur.dict.sourceUrl = m[1];
+        }
+        return;
+      }
+      if ((m = line.match(/^Wikipedia\s*—\s*(.+)$/))) {
+        mode = "wiki";
+        wiki = { title: m[1].trim(), extract: "", url: "", description: "", disambig: false };
+        wikiLines = [];
+        return;
+      }
+      if ((m = line.match(/\[Read the full article\]\((https?:[^)]+)\)/))) {
+        if (wiki) { wiki.url = m[1]; wiki.extract = wikiLines.join("\n"); }
+        closeEntry();
+        return;
+      }
+      if (/^No Wikipedia article found\.?$/.test(line)) { wiki = null; closeEntry(); return; }
+      if (/^No dictionary entry found\.?$/.test(line)) return;
+      if (mode === "wiki") { wikiLines.push(line.replace(/^[*+•]\s+/, "- ")); return; }
+      if (POS_RE.test(line) || line === "—") {
+        if (!cur) return;
+        if (!cur.dict) cur.dict = { phonetic: cur._ph || "", audio: "", sourceUrl: "", meanings: [] };
+        meaning = { pos: line.toLowerCase(), defs: [], syns: [], ants: [] };
+        cur.dict.meanings.push(meaning);
+        lastDef = null; mode = "defs";
+        return;
+      }
+      if ((m = line.match(/^\d+\.\s+(.*)$/)) && meaning) {
+        lastDef = { def: m[1], example: "", syns: [], ants: [] };
+        meaning.defs.push(lastDef);
+        return;
+      }
+      if ((m = line.match(/^[“"](.*)[”"]$/)) && lastDef) { lastDef.example = m[1]; return; }
+      if ((m = line.match(/^synonyms:\s*(.+)$/i)) && meaning) {
+        m[1].split(/,\s*/).forEach(function (s) { if (meaning.syns.indexOf(s) < 0) meaning.syns.push(s); });
+        return;
+      }
+      if ((m = line.match(/^antonyms:\s*(.+)$/i)) && meaning) {
+        m[1].split(/,\s*/).forEach(function (s) { if (meaning.ants.indexOf(s) < 0) meaning.ants.push(s); });
+        return;
+      }
+      if (/^ALSO$/.test(line)) { mode = "also"; return; }
+      if (mode === "also") { if (cur) cur.customDef = (cur.customDef ? cur.customDef + "\n" : "") + line; return; }
+      if ((m = line.match(/^[*+-]\s+(.+)$/))) { closeEntry(); rest.push("- " + m[1]); return; }
+      if ((m = line.match(/^([A-Za-z][\w’'-]*)\s*([\/\[][^\/\]]*[\/\]])?$/))) {
+        closeEntry();
+        cur = { word: m[1], dict: null, wiki: null, customDef: "", _ph: (m[2] || "").trim() };
+        return;
+      }
+      // stray line inside definitions: treat as continuation of the last one
+      if (lastDef && mode === "defs") lastDef.def += " " + line;
+    });
+    closeEntry();
+    return {
+      entries: entries.filter(function (e) { return e.dict || e.wiki || e.customDef; }),
+      rest: rest
+    };
+  }
+
   // ---------- generate ----------
   function generate() {
-    var words = parseWords(input.value);
+    var raw = input.value;
     banner.classList.remove("show");
-    if (!words.length) {
-      showBanner("Add at least one word — one bullet per line, e.g. “- serendipity”.");
+    var pre = [], bulk = raw;
+    if (raw.indexOf("<details") !== -1) {
+      var pm = parseOwnMarkdown(raw);
+      pre = pm.entries; bulk = pm.rest;
+    } else if (/^Wikipedia\s*—\s*/m.test(raw) || /\[Read the full article\]/.test(raw)) {
+      var pt = parseRenderedText(raw);
+      pre = pt.entries; bulk = pt.rest.join("\n");
+    }
+    var seenPre = {};
+    pre.forEach(function (p) { seenPre[p.word.toLowerCase()] = true; });
+    var words = parseWords(bulk).filter(function (w) { return !seenPre[w.toLowerCase()]; });
+    if (!pre.length && !words.length) {
+      showBanner("Add at least one word — one bullet per line, e.g. “- serendipity”. You can also paste output this tool generated earlier.");
       return;
     }
-    goBtn.disabled = true;
-    goBtn.textContent = "Looking up " + words.length + " word" + (words.length > 1 ? "s" : "") + "…";
+    pre.forEach(function (p) {
+      if (p.customDef) {
+        var k = p.word.toLowerCase();
+        EXTRAS[k] = EXTRAS[k] || {};
+        EXTRAS[k].def = p.customDef;
+      }
+    });
     chipsEl.innerHTML = "";
     $("legend").hidden = false;
     mdOut.innerHTML = "";
     mdOut.appendChild(el("span", "empty", "Working…"));
 
-    var results = new Array(words.length);
+    var results = new Array(pre.length + words.length);
+    pre.forEach(function (p, i) {
+      results[i] = { word: p.word, dict: p.dict, wiki: p.wiki };
+      var chip = makeChip(p.word);
+      chip.set("dict", !!p.dict);
+      chip.set("wiki", !!p.wiki);
+      chip.done();
+    });
+
     var networkErrors = 0;
     var idx = 0, active = 0, LIMIT = 4;
-
-    function next() {
-      while (active < LIMIT && idx < words.length) {
-        (function (i) {
-          var word = words[i];
-          active++; idx++;
-          var chip = makeChip(word);
-          var dictP = fetchDict(word).catch(function () { networkErrors++; return null; });
-          var wikiP = fetchWiki(word).catch(function () { networkErrors++; return null; });
-          Promise.all([dictP, wikiP]).then(function (vals) {
-            chip.set("dict", !!vals[0]);
-            chip.set("wiki", !!vals[1]);
-            chip.done();
-            results[i] = { word: word, dict: vals[0], wiki: vals[1] };
-            active--;
-            if (idx < words.length) next();
-            else if (active === 0) finish();
-          });
-        })(i = idx);
-      }
-    }
-    var i;
 
     function finish() {
       goBtn.disabled = false;
       goBtn.textContent = "Generate markdown";
-      var allEmpty = results.every(function (r) { return !r.dict && !r.wiki; });
+      var allEmpty = results.every(function (r) { return !r.dict && !r.wiki && !extrasFor(r.word).def; });
       if (allEmpty && networkErrors > 0) {
         currentMd = "";
         copyBtn.disabled = true;
@@ -811,6 +1083,31 @@
       rebuildOutput();
     }
 
+    if (!words.length) { finish(); return; }
+
+    goBtn.disabled = true;
+    goBtn.textContent = "Looking up " + words.length + " word" + (words.length > 1 ? "s" : "") + "…";
+
+    function next() {
+      while (active < LIMIT && idx < words.length) {
+        (function (i) {
+          var word = words[i];
+          active++; idx++;
+          var chip = makeChip(word);
+          var dictP = fetchDict(word).catch(function () { networkErrors++; return null; });
+          var wikiP = fetchWiki(word).catch(function () { networkErrors++; return null; });
+          Promise.all([dictP, wikiP]).then(function (vals) {
+            chip.set("dict", !!vals[0]);
+            chip.set("wiki", !!vals[1]);
+            chip.done();
+            results[pre.length + i] = { word: word, dict: vals[0], wiki: vals[1] };
+            active--;
+            if (idx < words.length) next();
+            else if (active === 0) finish();
+          });
+        })(idx);
+      }
+    }
     next();
   }
 
@@ -823,6 +1120,7 @@
     }).join("\n\n---\n\n").trim() + "\n";
     mdOut.textContent = currentMd;
     renderPreview(lastResults);
+    buildCards();
     copyBtn.disabled = false;
     dlBtn.disabled = false;
   }
@@ -991,15 +1289,18 @@
   goBtn.addEventListener("click", generate);
 
   // tabs
-  var tabMd = $("tabMd"), tabPv = $("tabPv");
-  function selectTab(md) {
-    tabMd.setAttribute("aria-selected", md ? "true" : "false");
-    tabPv.setAttribute("aria-selected", md ? "false" : "true");
-    mdOut.hidden = !md;
-    pvOut.hidden = md;
+  var tabMd = $("tabMd"), tabPv = $("tabPv"), tabFc = $("tabFc");
+  function selectTab(which) {
+    tabMd.setAttribute("aria-selected", which === "md" ? "true" : "false");
+    tabPv.setAttribute("aria-selected", which === "pv" ? "true" : "false");
+    tabFc.setAttribute("aria-selected", which === "fc" ? "true" : "false");
+    mdOut.hidden = which !== "md";
+    pvOut.hidden = which !== "pv";
+    $("fcOut").hidden = which !== "fc";
   }
-  tabMd.addEventListener("click", function () { selectTab(true); });
-  tabPv.addEventListener("click", function () { selectTab(false); });
+  tabMd.addEventListener("click", function () { selectTab("md"); });
+  tabPv.addEventListener("click", function () { selectTab("pv"); });
+  tabFc.addEventListener("click", function () { selectTab("fc"); });
 })();
 </script>
 
