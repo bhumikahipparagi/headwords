@@ -1,6 +1,6 @@
 // Headwords service worker — offline app shell caching.
 // CACHE_VERSION is bumped on each deploy so clients pick up new builds.
-var CACHE_VERSION = "headwords-2026-07-24-b21";
+var CACHE_VERSION = "headwords-2026-07-24-b22";
 var SHELL = [
   "./",
   "./index.html",

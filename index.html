@@ -322,6 +322,8 @@
   }
   .tab[aria-selected="true"] { background: var(--card); color: var(--ink); box-shadow: var(--shadow); }
   .masthead .nav { margin-left: auto; }
+  .libbar { display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--rule); padding-top: 12px; }
+  .libcount { font-size: 0.9rem; color: var(--muted); }
   .themeBtn {
     min-height: 40px;
     width: 40px;
@@ -499,6 +501,13 @@
       </div>
       <button id="fcGoBtn" class="primary" type="button">Create flashcards</button>
       <div class="legend" id="fcStatus"></div>
+      <div class="libbar" id="libBar" hidden>
+        <span class="libcount" id="libCount"></span>
+        <div class="btn-row">
+          <button id="libStudyBtn" type="button">Study all saved</button>
+          <button id="libClearBtn" type="button">Clear library</button>
+        </div>
+      </div>
     </section>
 
     <section class="card" aria-label="Flashcards">
@@ -508,7 +517,7 @@
   </div>
 
   <footer>
-    Definitions from the <a href="https://dictionaryapi.dev" target="_blank" rel="noopener" style="color:var(--accent)">Free Dictionary API</a> (the Oxford English Dictionary has no free public API); summaries from English Wikipedia. Wikipedia sections use <code>&lt;details&gt;</code> tags — collapsed by default on GitHub and Obsidian. Build <!--BUILD-->2026-07-24-b21<!--/BUILD-->.
+    Definitions from the <a href="https://dictionaryapi.dev" target="_blank" rel="noopener" style="color:var(--accent)">Free Dictionary API</a> (the Oxford English Dictionary has no free public API); summaries from English Wikipedia. Wikipedia sections use <code>&lt;details&gt;</code> tags — collapsed by default on GitHub and Obsidian. Build <!--BUILD-->2026-07-24-b22<!--/BUILD-->.
   </footer>
 </div>
 
@@ -846,7 +855,56 @@
   }
 
   // ---------- flashcards ----------
-  var FC = { data: [], order: [], idx: 0, back: false, full: false };
+  var FC = { data: [], order: [], idx: 0, back: false, full: false, mode: "new", newEntries: [] };
+
+  // Persistent flashcard library: every entry ever created is kept here.
+  var LIB_KEY = "hw-library";
+  function loadLibrary() {
+    try {
+      var arr = JSON.parse(localStorage.getItem(LIB_KEY) || "[]");
+      if (!Array.isArray(arr)) arr = [];
+      arr.forEach(function (e) {
+        if (e && e.customDef) { var k = e.word.toLowerCase(); EXTRAS[k] = EXTRAS[k] || {}; EXTRAS[k].def = e.customDef; }
+      });
+      return arr;
+    } catch (e) { return []; }
+  }
+  var LIBRARY = loadLibrary();
+  function saveLibrary() { try { localStorage.setItem(LIB_KEY, JSON.stringify(LIBRARY)); } catch (e) {} }
+
+  // Add a batch to the library: dedupe by word, newest wins (but keep an
+  // earlier custom definition if the new copy has none), then persist.
+  function mergeLibrary(entries) {
+    var index = {};
+    LIBRARY.forEach(function (e, i) { index[e.word.toLowerCase()] = i; });
+    entries.forEach(function (e) {
+      var k = e.word.toLowerCase();
+      var entry = { word: e.word, dict: e.dict, wiki: e.wiki, customDef: e.customDef || "" };
+      if (index[k] != null) {
+        var old = LIBRARY[index[k]];
+        if (!entry.customDef && old.customDef) entry.customDef = old.customDef;
+        LIBRARY[index[k]] = entry;
+      } else {
+        index[k] = LIBRARY.length;
+        LIBRARY.push(entry);
+      }
+      if (entry.customDef) { EXTRAS[k] = EXTRAS[k] || {}; EXTRAS[k].def = entry.customDef; }
+    });
+    saveLibrary();
+  }
+
+  function updateLibBar() {
+    var bar = $("libBar");
+    if (!LIBRARY.length) { bar.hidden = true; return; }
+    bar.hidden = false;
+    $("libCount").textContent = "📚 " + LIBRARY.length + " word" + (LIBRARY.length > 1 ? "s" : "") + " saved in your library";
+  }
+
+  // Study either the just-added batch ("new") or the whole saved set ("all").
+  function showDeck(mode) {
+    FC.mode = mode;
+    buildCards(mode === "all" ? LIBRARY : FC.newEntries);
+  }
 
   function setFullscreen(on) {
     FC.full = on;
@@ -925,9 +983,21 @@
     var flip = el("button", "primary", FC.back ? "Show word" : "Flip");
     var next = el("button", "", "Next ›");
     bar.appendChild(prev); bar.appendChild(flip); bar.appendChild(next);
-    bar.appendChild(el("span", "count", (FC.idx + 1) + " / " + FC.order.length + " · similar words grouped"));
+    // Is there anything in the library beyond the current new batch to mix in?
+    var newWords = {};
+    FC.newEntries.forEach(function (e) { newWords[e.word.toLowerCase()] = 1; });
+    var hasOld = LIBRARY.some(function (e) { return !newWords[e.word.toLowerCase()]; });
+    var suffix = hasOld ? (FC.mode === "all" ? " · all saved, grouped" : " · new batch, grouped") : " · similar words grouped";
+    bar.appendChild(el("span", "count", (FC.idx + 1) + " / " + FC.order.length + suffix));
     if (FC.full) {
       bar.appendChild(el("span", "spacer"));
+      if (hasOld) {
+        var mixBtn = el("button", "", FC.mode === "new"
+          ? "＋ Mix in saved (" + LIBRARY.length + ")"
+          : "Show new only (" + FC.newEntries.length + ")");
+        mixBtn.addEventListener("click", function () { showDeck(FC.mode === "new" ? "all" : "new"); });
+        bar.appendChild(mixBtn);
+      }
       var exit = el("button", "", "✕ Exit");
       exit.addEventListener("click", function () { setFullscreen(false); });
       bar.appendChild(exit);
@@ -1429,14 +1499,10 @@
         EXTRAS[k].def = p.customDef;
       }
     });
-    var data = pre.map(function (p) { return { word: p.word, dict: p.dict, wiki: p.wiki }; });
+    var data = pre.map(function (p) { return { word: p.word, dict: p.dict, wiki: p.wiki, customDef: p.customDef || "" }; });
     var status = $("fcStatus");
     var btn = $("fcGoBtn");
-    if (!words.length) {
-      status.textContent = data.length + " cards ready — similar words grouped.";
-      buildCards(data);
-      return;
-    }
+    if (!words.length) { finishCards(data); return; }
     btn.disabled = true;
     var done = 0;
     status.textContent = "Looking up " + words.length + " new word" + (words.length > 1 ? "s" : "") + "…";
@@ -1447,17 +1513,40 @@
       ]).then(function (vals) {
         done++;
         status.textContent = "Looking up new words… " + done + " / " + words.length;
-        return { word: w, dict: vals[0], wiki: vals[1] };
+        return { word: w, dict: vals[0], wiki: vals[1], customDef: "" };
       });
     });
     Promise.all(fetches).then(function (fetched) {
       btn.disabled = false;
-      var all = data.concat(fetched);
-      status.textContent = all.length + " cards ready — similar words grouped.";
-      buildCards(all);
+      finishCards(data.concat(fetched));
     });
   }
+
+  // Save the new batch into the library, then study just this batch first.
+  function finishCards(entries) {
+    FC.newEntries = entries;
+    mergeLibrary(entries);
+    updateLibBar();
+    $("fcStatus").textContent = entries.length + " new card" + (entries.length > 1 ? "s" : "") +
+      " ready — similar words grouped. Mix in your saved words from the study bar.";
+    showDeck("new");
+  }
   $("fcGoBtn").addEventListener("click", createCards);
+
+  $("libStudyBtn").addEventListener("click", function () {
+    if (!LIBRARY.length) { toast("Your library is empty"); return; }
+    FC.newEntries = LIBRARY.slice();
+    showDeck("all");
+  });
+  $("libClearBtn").addEventListener("click", function () {
+    if (!LIBRARY.length) return;
+    if (!window.confirm("Remove all " + LIBRARY.length + " saved words from your library? This can’t be undone.")) return;
+    LIBRARY = [];
+    saveLibrary();
+    updateLibBar();
+    toast("Library cleared");
+  });
+  updateLibBar();
 
   // ---------- light / dark toggle ----------
   function currentIsDark() {
