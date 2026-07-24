@@ -1,0 +1,16 @@
+{
+  "name": "Headwords",
+  "short_name": "Headwords",
+  "description": "Dictionary definitions and Wikipedia summaries as copyable markdown, with study flashcards.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#F4E9D6",
+  "theme_color": "#F4E9D6",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

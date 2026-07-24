@@ -1,7 +1,17 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#F4E9D6" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1F1912" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Headwords">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
 <meta charset="utf-8">
 <title>Headwords — Dictionary + Wikipedia Markdown</title>
 <style>
@@ -312,6 +322,22 @@
   }
   .tab[aria-selected="true"] { background: var(--card); color: var(--ink); box-shadow: var(--shadow); }
   .masthead .nav { margin-left: auto; }
+  .themeBtn {
+    min-height: 40px;
+    width: 40px;
+    padding: 0;
+    border-radius: 999px;
+    font-size: 1.1rem;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .themeBtn::before { content: "☾"; }
+  :root[data-theme="dark"] .themeBtn::before { content: "☀"; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .themeBtn::before { content: "☀"; }
+  }
   .spacer { flex: 1; }
 
   pre.md-out {
@@ -405,6 +431,14 @@
 </head>
 <body>
 
+<script>
+  // Apply a saved manual theme before first paint to avoid a flash.
+  try {
+    var t = localStorage.getItem("hw-theme");
+    if (t === "light" || t === "dark") document.documentElement.setAttribute("data-theme", t);
+  } catch (e) {}
+</script>
+
 <div class="wrap">
   <header class="masthead">
     <h1>Headwords<span class="slash"> /</span></h1>
@@ -413,6 +447,7 @@
       <button class="tab" id="navGen" role="tab" aria-selected="true" type="button">Generator</button>
       <button class="tab" id="navFc" role="tab" aria-selected="false" type="button">Flashcards</button>
     </div>
+    <button id="themeBtn" class="themeBtn" type="button" aria-label="Switch between light and dark" title="Light / dark"></button>
   </header>
 
   <div id="pageGen" class="grid">
@@ -473,7 +508,7 @@
   </div>
 
   <footer>
-    Definitions from the <a href="https://dictionaryapi.dev" target="_blank" rel="noopener" style="color:var(--accent)">Free Dictionary API</a> (the Oxford English Dictionary has no free public API); summaries from English Wikipedia. Wikipedia sections use <code>&lt;details&gt;</code> tags — collapsed by default on GitHub and Obsidian. Build <!--BUILD-->2026-07-20-b20<!--/BUILD-->.
+    Definitions from the <a href="https://dictionaryapi.dev" target="_blank" rel="noopener" style="color:var(--accent)">Free Dictionary API</a> (the Oxford English Dictionary has no free public API); summaries from English Wikipedia. Wikipedia sections use <code>&lt;details&gt;</code> tags — collapsed by default on GitHub and Obsidian. Build <!--BUILD-->2026-07-24-b21<!--/BUILD-->.
   </footer>
 </div>
 
@@ -1423,8 +1458,29 @@
     });
   }
   $("fcGoBtn").addEventListener("click", createCards);
+
+  // ---------- light / dark toggle ----------
+  function currentIsDark() {
+    var attr = document.documentElement.getAttribute("data-theme");
+    if (attr === "dark") return true;
+    if (attr === "light") return false;
+    return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+  }
+  $("themeBtn").addEventListener("click", function () {
+    var next = currentIsDark() ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", next);
+    try { localStorage.setItem("hw-theme", next); } catch (e) {}
+  });
 })();
+
+// Register the service worker so the app works offline once installed.
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", function () {
+    navigator.serviceWorker.register("sw.js").catch(function () {});
+  });
+}
 </script>
+
 
 
 
